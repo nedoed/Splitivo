@@ -42,13 +42,31 @@ export default function GroupsScreen({ navigation }: any) {
     }
 
     const groupIds = memberships.map((m) => m.group_id);
+
     const { data, error } = await supabase
       .from('groups')
       .select('*')
       .in('id', groupIds)
       .order('created_at', { ascending: false });
 
-    if (!error && data) setGroups(data as Group[]);
+    if (!error && data) {
+      // Mitgliederanzahl pro Gruppe laden
+      const { data: allMembers } = await supabase
+        .from('group_members')
+        .select('group_id')
+        .in('group_id', groupIds);
+
+      const countMap: { [key: string]: number } = {};
+      allMembers?.forEach((m) => {
+        countMap[m.group_id] = (countMap[m.group_id] || 0) + 1;
+      });
+
+      const groupsWithCount = data.map((g) => ({
+        ...g,
+        member_count: countMap[g.id] || 1,
+      }));
+      setGroups(groupsWithCount as Group[]);
+    }
     setLoading(false);
     setRefreshing(false);
   };
@@ -96,7 +114,9 @@ export default function GroupsScreen({ navigation }: any) {
       </View>
       <View style={styles.groupInfo}>
         <Text style={styles.groupName}>{item.name}</Text>
-        {item.description && <Text style={styles.groupDesc} numberOfLines={1}>{item.description}</Text>}
+        <Text style={styles.groupDesc} numberOfLines={1}>
+          {item.description ? item.description : `${item.member_count ?? 1} Mitglied${(item.member_count ?? 1) !== 1 ? 'er' : ''}`}
+        </Text>
       </View>
       <Text style={styles.arrow}>›</Text>
     </TouchableOpacity>

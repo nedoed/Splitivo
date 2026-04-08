@@ -22,20 +22,52 @@ export default function GroupDetailScreen({ route, navigation }: any) {
     const { data: user } = await supabase.auth.getUser();
     if (user.user) setCurrentUserId(user.user.id);
 
-    const [expensesRes, membersRes] = await Promise.all([
-      supabase
-        .from('expenses')
-        .select('*, payer:profiles!paid_by(id, username, avatar_url)')
-        .eq('group_id', group.id)
-        .order('date', { ascending: false }),
-      supabase
-        .from('group_members')
-        .select('*, profile:profiles!user_id(id, username, avatar_url)')
-        .eq('group_id', group.id),
-    ]);
+    // Ausgaben laden
+    const { data: expensesData } = await supabase
+      .from('expenses')
+      .select('*')
+      .eq('group_id', group.id)
+      .order('date', { ascending: false });
 
-    if (!expensesRes.error) setExpenses(expensesRes.data as any);
-    if (!membersRes.error) setMembers(membersRes.data as any);
+    // Mitglieder laden
+    const { data: membersData } = await supabase
+      .from('group_members')
+      .select('*')
+      .eq('group_id', group.id);
+
+    if (expensesData && membersData) {
+      // Alle beteiligten User-IDs sammeln
+      const userIds = [
+        ...new Set([
+          ...membersData.map((m) => m.user_id),
+          ...expensesData.map((e) => e.paid_by).filter(Boolean),
+        ]),
+      ];
+
+      // Profile in einem Query laden
+      const { data: profiles } = userIds.length > 0
+        ? await supabase.from('profiles').select('*').in('id', userIds)
+        : { data: [] };
+
+      const profileMap: { [id: string]: any } = {};
+      profiles?.forEach((p) => { profileMap[p.id] = p; });
+
+      // Ausgaben mit Zahler-Profil verknüpfen
+      const enrichedExpenses = expensesData.map((e) => ({
+        ...e,
+        payer: profileMap[e.paid_by] ?? null,
+      }));
+
+      // Mitglieder mit Profil verknüpfen
+      const enrichedMembers = membersData.map((m) => ({
+        ...m,
+        profile: profileMap[m.user_id] ?? null,
+      }));
+
+      setExpenses(enrichedExpenses as any);
+      setMembers(enrichedMembers as any);
+    }
+
     setLoading(false);
     setRefreshing(false);
   };
@@ -43,24 +75,31 @@ export default function GroupDetailScreen({ route, navigation }: any) {
   useFocusEffect(useCallback(() => { fetchData(); }, []));
 
   const inviteMember = async () => {
-    if (!inviteEmail.trim()) return;
+    const email = inviteEmail.trim().toLowerCase();
+    if (!email) return;
     setInviting(true);
 
-    const { data: profile, error } = await supabase
+    // Suche nach E-Mail (case-insensitive via ilike)
+    const { data: profiles, error } = await supabase
       .from('profiles')
-      .select('id')
-      .eq('email', inviteEmail.trim().toLowerCase())
-      .single();
+      .select('id, username, email')
+      .ilike('email', email)
+      .limit(1);
+
+    const profile = profiles?.[0];
 
     if (error || !profile) {
-      Alert.alert('Fehler', 'Benutzer nicht gefunden. Stelle sicher, dass er registriert ist.');
+      Alert.alert(
+        'Nicht gefunden',
+        `Kein Konto für "${email}" gefunden.\n\nDie Person muss sich zuerst in der App registrieren.`
+      );
       setInviting(false);
       return;
     }
 
     const alreadyMember = members.some((m) => m.user_id === profile.id);
     if (alreadyMember) {
-      Alert.alert('Hinweis', 'Dieser Benutzer ist bereits Mitglied.');
+      Alert.alert('Bereits Mitglied', `${profile.username} ist schon in dieser Gruppe.`);
       setInviting(false);
       return;
     }
@@ -72,7 +111,7 @@ export default function GroupDetailScreen({ route, navigation }: any) {
     if (insertError) {
       Alert.alert('Fehler', insertError.message);
     } else {
-      Alert.alert('Erfolg', 'Mitglied hinzugefügt!');
+      Alert.alert('✓ Hinzugefügt', `${profile.username} wurde zur Gruppe hinzugefügt!`);
       setInviteEmail('');
       setInviteModal(false);
       fetchData();
