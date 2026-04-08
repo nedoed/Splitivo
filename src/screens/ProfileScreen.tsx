@@ -3,6 +3,7 @@ import {
   View, Text, TouchableOpacity, StyleSheet, Alert,
   ActivityIndicator, Image, ScrollView, RefreshControl,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { useFocusEffect } from '@react-navigation/native';
 import { supabase } from '../lib/supabase';
@@ -110,15 +111,18 @@ export default function ProfileScreen() {
 
   if (loading) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color="#6C63FF" />
-      </View>
+      <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+        <View style={styles.center}>
+          <ActivityIndicator size="large" color="#6C63FF" />
+        </View>
+      </SafeAreaView>
     );
   }
 
   return (
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
     <ScrollView
-      style={styles.container}
+      style={styles.scrollView}
       contentContainerStyle={styles.content}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchProfile(); }} tintColor="#6C63FF" />}
     >
@@ -177,11 +181,13 @@ export default function ProfileScreen() {
         <Text style={styles.signOutText}>Abmelden</Text>
       </TouchableOpacity>
     </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8F8FF' },
+  scrollView: { flex: 1 },
   content: { padding: 20 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   profileSection: { alignItems: 'center', paddingVertical: 24 },

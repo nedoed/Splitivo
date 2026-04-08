@@ -3,6 +3,7 @@ import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
   ActivityIndicator, RefreshControl, Alert, Modal, TextInput,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { supabase } from '../lib/supabase';
 import { Expense, Group, GroupMember, CATEGORIES } from '../types';
@@ -141,7 +142,7 @@ export default function GroupDetailScreen({ route, navigation }: any) {
   );
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['bottom']}>
       <View style={styles.summaryCard}>
         <View style={styles.summaryRow}>
           <View>
@@ -219,7 +220,7 @@ export default function GroupDetailScreen({ route, navigation }: any) {
           </View>
         </View>
       </Modal>
-    </View>
+    </SafeAreaView>
   );
 }
 

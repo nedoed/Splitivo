@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
   RefreshControl,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { supabase } from '../lib/supabase';
 import { Group } from '../types';
@@ -123,7 +124,7 @@ export default function GroupsScreen({ navigation }: any) {
   );
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <View style={styles.header}>
         <Text style={styles.title}>Meine Gruppen</Text>
         <TouchableOpacity style={styles.addBtn} onPress={() => setModalVisible(true)}>
@@ -181,13 +182,13 @@ export default function GroupsScreen({ navigation }: any) {
           </View>
         </View>
       </Modal>
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8F8FF' },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, paddingTop: 10 },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 12 },
   title: { fontSize: 24, fontWeight: '700', color: '#1a1a2e' },
   addBtn: { backgroundColor: '#6C63FF', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20 },
   addBtnText: { color: '#fff', fontWeight: '600', fontSize: 14 },

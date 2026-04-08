@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  ScrollView, Alert, ActivityIndicator, Image, Modal,
+  ScrollView, Alert, ActivityIndicator, Image,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { supabase } from '../lib/supabase';
 import { CATEGORIES, GroupMember } from '../types';
@@ -140,6 +141,7 @@ export default function AddExpenseScreen({ route, navigation }: any) {
   };
 
   return (
+    <SafeAreaView style={styles.safeArea} edges={['bottom']}>
     <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       <TouchableOpacity style={styles.scanBtn} onPress={scanReceipt} disabled={scanLoading}>
         {scanLoading ? (
@@ -241,10 +243,12 @@ export default function AddExpenseScreen({ route, navigation }: any) {
         {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitBtnText}>Ausgabe hinzufügen</Text>}
       </TouchableOpacity>
     </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: '#F8F8FF' },
   container: { flex: 1, backgroundColor: '#F8F8FF' },
   content: { padding: 20, paddingBottom: 40 },
   scanBtn: {

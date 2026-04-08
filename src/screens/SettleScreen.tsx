@@ -3,6 +3,7 @@ import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
   ActivityIndicator, RefreshControl, Alert,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { supabase } from '../lib/supabase';
 import { Debt } from '../types';
@@ -151,7 +152,7 @@ export default function SettleScreen() {
     .reduce((sum, d) => sum + d.amount, 0);
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <View style={styles.header}>
         <Text style={styles.title}>Abrechnen</Text>
       </View>
@@ -210,7 +211,7 @@ export default function SettleScreen() {
           }}
         />
       )}
-    </View>
+    </SafeAreaView>
   );
 }
 

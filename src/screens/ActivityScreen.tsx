@@ -2,6 +2,7 @@ import React, { useState, useCallback } from 'react';
 import {
   View, Text, FlatList, StyleSheet, ActivityIndicator, RefreshControl,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { supabase } from '../lib/supabase';
 import { Expense, CATEGORIES } from '../types';
@@ -85,7 +86,7 @@ export default function ActivityScreen() {
   );
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <View style={styles.header}>
         <Text style={styles.title}>Aktivität</Text>
       </View>
@@ -111,7 +112,7 @@ export default function ActivityScreen() {
           }
         />
       )}
-    </View>
+    </SafeAreaView>
   );
 }
 
