@@ -81,13 +81,9 @@ export default function GroupsScreen({ navigation }: any) {
       const { data: { user }, error: userError } = await supabase.auth.getUser();
 
       if (userError || !user) {
-        console.log('Kein User gefunden:', userError);
         Alert.alert('Fehler', 'Nicht eingeloggt');
         return;
       }
-
-      console.log('User ID:', user.id);
-      console.log('Group Name:', groupName);
 
       const { data: group, error: groupError } = await supabase
         .from('groups')
@@ -100,12 +96,9 @@ export default function GroupsScreen({ navigation }: any) {
         .single();
 
       if (groupError) {
-        console.log('Group Error:', groupError);
         Alert.alert('Fehler', groupError.message);
         return;
       }
-
-      console.log('Gruppe erstellt:', group);
 
       const { error: memberError } = await supabase
         .from('group_members')
@@ -115,7 +108,6 @@ export default function GroupsScreen({ navigation }: any) {
         });
 
       if (memberError) {
-        console.log('Member Error:', memberError);
         Alert.alert('Fehler', memberError.message);
         return;
       }
