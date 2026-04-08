@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,8 @@ import {
   ActivityIndicator,
   Alert,
   ScrollView,
+  TouchableWithoutFeedback,
+  Keyboard,
 } from 'react-native';
 import { supabase } from '../lib/supabase';
 
@@ -23,6 +25,9 @@ export default function AuthScreen() {
   const [username, setUsername] = useState('');
   const [loading, setLoading] = useState(false);
   const [confirmationPending, setConfirmationPending] = useState(false);
+
+  const emailRef = useRef<TextInput>(null);
+  const passwordRef = useRef<TextInput>(null);
 
   const handleAuth = async () => {
     if (!email || !password) {
@@ -72,6 +77,7 @@ export default function AuthScreen() {
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
       <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         <View style={styles.header}>
           <Text style={styles.logo}>💸</Text>
@@ -106,6 +112,9 @@ export default function AuthScreen() {
                 onChangeText={setUsername}
                 autoCapitalize="none"
                 placeholderTextColor="#999"
+                returnKeyType="next"
+                onSubmitEditing={() => emailRef.current?.focus()}
+                blurOnSubmit={false}
               />
             </View>
           )}
@@ -113,6 +122,7 @@ export default function AuthScreen() {
           <View style={styles.inputContainer}>
             <Text style={styles.inputLabel}>E-Mail</Text>
             <TextInput
+              ref={emailRef}
               style={styles.input}
               placeholder="deine@email.de"
               value={email}
@@ -120,18 +130,24 @@ export default function AuthScreen() {
               keyboardType="email-address"
               autoCapitalize="none"
               placeholderTextColor="#999"
+              returnKeyType="next"
+              onSubmitEditing={() => passwordRef.current?.focus()}
+              blurOnSubmit={false}
             />
           </View>
 
           <View style={styles.inputContainer}>
             <Text style={styles.inputLabel}>Passwort</Text>
             <TextInput
+              ref={passwordRef}
               style={styles.input}
               placeholder="Mindestens 6 Zeichen"
               value={password}
               onChangeText={setPassword}
               secureTextEntry
               placeholderTextColor="#999"
+              returnKeyType="done"
+              onSubmitEditing={handleAuth}
             />
           </View>
 
@@ -160,6 +176,7 @@ export default function AuthScreen() {
         </View>
         )}
       </ScrollView>
+      </TouchableWithoutFeedback>
     </KeyboardAvoidingView>
   );
 }

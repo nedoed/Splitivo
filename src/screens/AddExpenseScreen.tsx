@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   ScrollView, Alert, ActivityIndicator, Image, Modal,
+  KeyboardAvoidingView, Platform, TouchableWithoutFeedback, Keyboard,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
@@ -23,6 +24,9 @@ export default function AddExpenseScreen({ route, navigation }: any) {
   const [loading, setLoading] = useState(false);
   const [scanLoading, setScanLoading] = useState(false);
   const [receiptImage, setReceiptImage] = useState<string | null>(null);
+
+  const descriptionRef = useRef<TextInput>(null);
+  const dateRef = useRef<TextInput>(null);
 
   // Eingeloggten User als Standard-Zahler setzen
   useEffect(() => {
@@ -170,6 +174,11 @@ export default function AddExpenseScreen({ route, navigation }: any) {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['bottom']}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={{ flex: 1 }}
+      >
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
       <ScrollView
         style={styles.container}
         contentContainerStyle={styles.content}
@@ -200,16 +209,23 @@ export default function AddExpenseScreen({ route, navigation }: any) {
           onChangeText={setAmount}
           keyboardType="decimal-pad"
           placeholderTextColor="#bbb"
+          returnKeyType="next"
+          onSubmitEditing={() => descriptionRef.current?.focus()}
+          blurOnSubmit={false}
         />
 
         {/* Beschreibung */}
         <Text style={styles.label}>Beschreibung</Text>
         <TextInput
+          ref={descriptionRef}
           style={styles.input}
           placeholder="z.B. Einkauf REWE"
           value={description}
           onChangeText={setDescription}
           placeholderTextColor="#999"
+          returnKeyType="next"
+          onSubmitEditing={() => dateRef.current?.focus()}
+          blurOnSubmit={false}
         />
 
         {/* Wer hat bezahlt */}
@@ -247,11 +263,14 @@ export default function AddExpenseScreen({ route, navigation }: any) {
         {/* Datum */}
         <Text style={styles.label}>Datum</Text>
         <TextInput
+          ref={dateRef}
           style={styles.input}
           placeholder="JJJJ-MM-TT"
           value={date}
           onChangeText={setDate}
           placeholderTextColor="#999"
+          returnKeyType="done"
+          onSubmitEditing={Keyboard.dismiss}
         />
 
         {/* Aufteilen mit */}
@@ -306,6 +325,8 @@ export default function AddExpenseScreen({ route, navigation }: any) {
           }
         </TouchableOpacity>
       </ScrollView>
+      </TouchableWithoutFeedback>
+      </KeyboardAvoidingView>
 
       {/* Zahler-Picker Modal */}
       <Modal visible={paidByPickerVisible} animationType="slide" transparent>

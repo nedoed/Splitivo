@@ -2,6 +2,7 @@ import React, { useState, useCallback } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
   ActivityIndicator, RefreshControl, Alert, Modal, TextInput,
+  KeyboardAvoidingView, Platform, TouchableWithoutFeedback, Keyboard,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -198,27 +199,37 @@ export default function GroupDetailScreen({ route, navigation }: any) {
       )}
 
       <Modal visible={inviteModal} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Mitglied einladen</Text>
-            <Text style={styles.modalHint}>E-Mail des registrierten Benutzers</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="freund@email.de"
-              value={inviteEmail}
-              onChangeText={setInviteEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              placeholderTextColor="#999"
-            />
-            <TouchableOpacity style={[styles.button, inviting && styles.buttonDisabled]} onPress={inviteMember} disabled={inviting}>
-              {inviting ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Einladen</Text>}
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.cancelBtn} onPress={() => setInviteModal(false)}>
-              <Text style={styles.cancelText}>Abbrechen</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={{ flex: 1 }}
+        >
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+            <View style={styles.modalOverlay}>
+              <View style={styles.modalCard}>
+                <Text style={styles.modalTitle}>Mitglied einladen</Text>
+                <Text style={styles.modalHint}>E-Mail des registrierten Benutzers</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="freund@email.de"
+                  value={inviteEmail}
+                  onChangeText={setInviteEmail}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  placeholderTextColor="#999"
+                  returnKeyType="done"
+                  onSubmitEditing={inviteMember}
+                  autoFocus
+                />
+                <TouchableOpacity style={[styles.button, inviting && styles.buttonDisabled]} onPress={inviteMember} disabled={inviting}>
+                  {inviting ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Einladen</Text>}
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.cancelBtn} onPress={() => { Keyboard.dismiss(); setInviteModal(false); }}>
+                  <Text style={styles.cancelText}>Abbrechen</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </TouchableWithoutFeedback>
+        </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
   );

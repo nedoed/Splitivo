@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,10 @@ import {
   Modal,
   ActivityIndicator,
   RefreshControl,
+  KeyboardAvoidingView,
+  Platform,
+  TouchableWithoutFeedback,
+  Keyboard,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -24,6 +28,7 @@ export default function GroupsScreen({ navigation }: any) {
   const [groupName, setGroupName] = useState('');
   const [groupDesc, setGroupDesc] = useState('');
   const [creating, setCreating] = useState(false);
+  const descRef = useRef<TextInput>(null);
 
   const fetchGroups = async () => {
     const { data: sessionData } = await supabase.auth.getSession();
@@ -176,31 +181,45 @@ export default function GroupsScreen({ navigation }: any) {
       )}
 
       <Modal visible={modalVisible} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Neue Gruppe</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Gruppenname (z.B. WG Berlin)"
-              value={groupName}
-              onChangeText={setGroupName}
-              placeholderTextColor="#999"
-            />
-            <TextInput
-              style={styles.input}
-              placeholder="Beschreibung (optional)"
-              value={groupDesc}
-              onChangeText={setGroupDesc}
-              placeholderTextColor="#999"
-            />
-            <TouchableOpacity style={[styles.button, creating && styles.buttonDisabled]} onPress={createGroup} disabled={creating}>
-              {creating ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Erstellen</Text>}
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.cancelBtn} onPress={() => setModalVisible(false)}>
-              <Text style={styles.cancelText}>Abbrechen</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={{ flex: 1 }}
+        >
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+            <View style={styles.modalOverlay}>
+              <View style={styles.modalCard}>
+                <Text style={styles.modalTitle}>Neue Gruppe</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Gruppenname (z.B. WG Berlin)"
+                  value={groupName}
+                  onChangeText={setGroupName}
+                  placeholderTextColor="#999"
+                  returnKeyType="next"
+                  onSubmitEditing={() => descRef.current?.focus()}
+                  blurOnSubmit={false}
+                  autoFocus
+                />
+                <TextInput
+                  ref={descRef}
+                  style={styles.input}
+                  placeholder="Beschreibung (optional)"
+                  value={groupDesc}
+                  onChangeText={setGroupDesc}
+                  placeholderTextColor="#999"
+                  returnKeyType="done"
+                  onSubmitEditing={createGroup}
+                />
+                <TouchableOpacity style={[styles.button, creating && styles.buttonDisabled]} onPress={createGroup} disabled={creating}>
+                  {creating ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Erstellen</Text>}
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.cancelBtn} onPress={() => { Keyboard.dismiss(); setModalVisible(false); }}>
+                  <Text style={styles.cancelText}>Abbrechen</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </TouchableWithoutFeedback>
+        </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
   );
