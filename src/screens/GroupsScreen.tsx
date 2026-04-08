@@ -28,22 +28,27 @@ export default function GroupsScreen({ navigation }: any) {
     const { data: user } = await supabase.auth.getUser();
     if (!user.user) return;
 
-    const { data, error } = await supabase
+    // Erst Mitgliedschaften laden, dann Gruppen separat
+    const { data: memberships, error: memError } = await supabase
       .from('group_members')
-      .select(`
-        group_id,
-        groups (
-          id, name, description, created_by, created_at
-        )
-      `)
+      .select('group_id')
       .eq('user_id', user.user.id);
 
-    if (!error && data) {
-      const groupList = data
-        .map((item: any) => item.groups)
-        .filter(Boolean) as Group[];
-      setGroups(groupList);
+    if (memError || !memberships || memberships.length === 0) {
+      setGroups([]);
+      setLoading(false);
+      setRefreshing(false);
+      return;
     }
+
+    const groupIds = memberships.map((m) => m.group_id);
+    const { data, error } = await supabase
+      .from('groups')
+      .select('*')
+      .in('id', groupIds)
+      .order('created_at', { ascending: false });
+
+    if (!error && data) setGroups(data as Group[]);
     setLoading(false);
     setRefreshing(false);
   };

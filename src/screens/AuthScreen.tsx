@@ -13,12 +13,16 @@ import {
 } from 'react-native';
 import { supabase } from '../lib/supabase';
 
+// Hinweis: Falls Registrierung nicht klappt → Supabase Dashboard →
+// Authentication → Settings → "Enable email confirmations" DEAKTIVIEREN
+
 export default function AuthScreen() {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [username, setUsername] = useState('');
   const [loading, setLoading] = useState(false);
+  const [confirmationPending, setConfirmationPending] = useState(false);
 
   const handleAuth = async () => {
     if (!email || !password) {
@@ -36,15 +40,24 @@ export default function AuthScreen() {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
       } else {
-        const { data, error } = await supabase.auth.signUp({ email, password });
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: { data: { username } },
+        });
         if (error) throw error;
-        if (data.user) {
+
+        if (data.user && data.session) {
+          // E-Mail-Bestätigung deaktiviert → direkt eingeloggt
           await supabase.from('profiles').upsert({
             id: data.user.id,
             username,
             email,
             avatar_url: null,
           });
+        } else if (data.user && !data.session) {
+          // E-Mail-Bestätigung aktiv → zeige Hinweis
+          setConfirmationPending(true);
         }
       }
     } catch (error: any) {
@@ -66,6 +79,20 @@ export default function AuthScreen() {
           <Text style={styles.subtitle}>Ausgaben einfach teilen</Text>
         </View>
 
+        {confirmationPending && (
+          <View style={styles.confirmBanner}>
+            <Text style={styles.confirmIcon}>📧</Text>
+            <Text style={styles.confirmTitle}>E-Mail bestätigen</Text>
+            <Text style={styles.confirmText}>
+              Wir haben dir eine Bestätigungs-E-Mail geschickt. Bitte klicke auf den Link und melde dich dann an.
+            </Text>
+            <TouchableOpacity onPress={() => { setConfirmationPending(false); setIsLogin(true); }}>
+              <Text style={styles.confirmLink}>Zur Anmeldung</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {!confirmationPending && (
         <View style={styles.card}>
           <Text style={styles.cardTitle}>{isLogin ? 'Willkommen zurück' : 'Konto erstellen'}</Text>
 
@@ -131,6 +158,7 @@ export default function AuthScreen() {
             </Text>
           </TouchableOpacity>
         </View>
+        )}
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -232,4 +260,19 @@ const styles = StyleSheet.create({
     color: '#6C63FF',
     fontWeight: '600',
   },
+  confirmBanner: {
+    backgroundColor: '#fff',
+    borderRadius: 24,
+    padding: 32,
+    alignItems: 'center',
+    shadowColor: '#6C63FF',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 20,
+    elevation: 5,
+  },
+  confirmIcon: { fontSize: 56, marginBottom: 16 },
+  confirmTitle: { fontSize: 22, fontWeight: '700', color: '#1a1a2e', marginBottom: 12 },
+  confirmText: { fontSize: 15, color: '#666', textAlign: 'center', lineHeight: 22, marginBottom: 20 },
+  confirmLink: { color: '#6C63FF', fontWeight: '700', fontSize: 16 },
 });
