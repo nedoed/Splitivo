@@ -1,0 +1,65 @@
+export interface Profile {
+  id: string;
+  username: string;
+  email: string;
+  avatar_url: string | null;
+  created_at: string;
+}
+
+export interface Group {
+  id: string;
+  name: string;
+  description: string | null;
+  created_by: string;
+  created_at: string;
+  member_count?: number;
+  total_expenses?: number;
+}
+
+export interface GroupMember {
+  id: string;
+  group_id: string;
+  user_id: string;
+  joined_at: string;
+  profile?: Profile;
+}
+
+export interface Expense {
+  id: string;
+  group_id: string;
+  paid_by: string;
+  amount: number;
+  description: string;
+  category: string;
+  date: string;
+  created_at: string;
+  payer?: Profile;
+  splits?: ExpenseSplit[];
+}
+
+export interface ExpenseSplit {
+  id: string;
+  expense_id: string;
+  user_id: string;
+  amount: number;
+  is_settled: boolean;
+  profile?: Profile;
+}
+
+export interface Debt {
+  from_user_id: string;
+  to_user_id: string;
+  amount: number;
+  from_profile?: Profile;
+  to_profile?: Profile;
+}
+
+export const CATEGORIES = [
+  { label: 'Essen & Trinken', value: 'food', icon: '🍔' },
+  { label: 'Transport', value: 'transport', icon: '🚗' },
+  { label: 'Unterkunft', value: 'accommodation', icon: '🏠' },
+  { label: 'Unterhaltung', value: 'entertainment', icon: '🎉' },
+  { label: 'Einkaufen', value: 'shopping', icon: '🛒' },
+  { label: 'Gesundheit', value: 'health', icon: '💊' },
+  { label: 'Sonstiges', value: 'other', icon: '📦' },
+];
