@@ -82,51 +82,36 @@ export default function GroupsScreen({ navigation }: any) {
     }
     setCreating(true);
 
-    // getSession() liest den lokalen Cache + stellt sicher dass der
-    // JWT-Token im Authorization-Header mitgeschickt wird
-    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
 
-    console.log('[createGroup] session:', JSON.stringify({
-      userId: sessionData?.session?.user?.id,
-      hasToken: !!sessionData?.session?.access_token,
-      sessionError: sessionError?.message,
-    }));
-
-    if (sessionError || !sessionData.session) {
-      Alert.alert('Nicht eingeloggt', 'Bitte melde dich erneut an.');
+    if (userError || !user) {
+      Alert.alert('Fehler', 'Nicht eingeloggt. Bitte neu anmelden.');
       setCreating(false);
       return;
     }
 
-    const userId = sessionData.session.user.id;
-    const insertPayload = {
-      name: groupName.trim(),
-      description: groupDesc.trim() || null,
-      created_by: userId,
-    };
-
-    console.log('[createGroup] inserting:', JSON.stringify(insertPayload));
-
-    const { data: group, error } = await supabase
+    const { data, error } = await supabase
       .from('groups')
-      .insert(insertPayload)
+      .insert({
+        name: groupName.trim(),
+        description: groupDesc.trim() || null,
+        created_by: user.id,
+      })
       .select()
       .single();
 
-    console.log('[createGroup] result:', JSON.stringify({
-      groupId: group?.id,
-      error: error?.message,
-      errorCode: error?.code,
-      errorDetails: error?.details,
-    }));
-
     if (error) {
-      Alert.alert('Fehler beim Erstellen', `${error.message}\n\nCode: ${error.code}`);
+      Alert.alert('Fehler', error.message);
       setCreating(false);
       return;
     }
 
-    await supabase.from('group_members').insert({ group_id: group.id, user_id: userId });
+    await supabase
+      .from('group_members')
+      .insert({
+        group_id: data.id,
+        user_id: user.id,
+      });
 
     setGroupName('');
     setGroupDesc('');
