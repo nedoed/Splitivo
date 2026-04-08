@@ -76,48 +76,60 @@ export default function GroupsScreen({ navigation }: any) {
   useFocusEffect(useCallback(() => { fetchGroups(); }, []));
 
   const createGroup = async () => {
-    if (!groupName.trim()) {
-      Alert.alert('Fehler', 'Gruppenname ist erforderlich.');
-      return;
-    }
     setCreating(true);
+    try {
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
 
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) {
+        console.log('Kein User gefunden:', userError);
+        Alert.alert('Fehler', 'Nicht eingeloggt');
+        return;
+      }
 
-    if (userError || !user) {
-      Alert.alert('Fehler', 'Nicht eingeloggt. Bitte neu anmelden.');
+      console.log('User ID:', user.id);
+      console.log('Group Name:', groupName);
+
+      const { data: group, error: groupError } = await supabase
+        .from('groups')
+        .insert({
+          name: groupName,
+          description: groupDesc || '',
+          created_by: user.id,
+        })
+        .select()
+        .single();
+
+      if (groupError) {
+        console.log('Group Error:', groupError);
+        Alert.alert('Fehler', groupError.message);
+        return;
+      }
+
+      console.log('Gruppe erstellt:', group);
+
+      const { error: memberError } = await supabase
+        .from('group_members')
+        .insert({
+          group_id: group.id,
+          user_id: user.id,
+        });
+
+      if (memberError) {
+        console.log('Member Error:', memberError);
+        Alert.alert('Fehler', memberError.message);
+        return;
+      }
+
+      setGroupName('');
+      setGroupDesc('');
+      setModalVisible(false);
+      fetchGroups();
+    } catch (error) {
+      console.log('Catch Error:', error);
+      Alert.alert('Fehler', 'Unbekannter Fehler');
+    } finally {
       setCreating(false);
-      return;
     }
-
-    const { data, error } = await supabase
-      .from('groups')
-      .insert({
-        name: groupName.trim(),
-        description: groupDesc.trim() || null,
-        created_by: user.id,
-      })
-      .select()
-      .single();
-
-    if (error) {
-      Alert.alert('Fehler', error.message);
-      setCreating(false);
-      return;
-    }
-
-    await supabase
-      .from('group_members')
-      .insert({
-        group_id: data.id,
-        user_id: user.id,
-      });
-
-    setGroupName('');
-    setGroupDesc('');
-    setModalVisible(false);
-    setCreating(false);
-    fetchGroups();
   };
 
   const renderGroup = ({ item }: { item: Group }) => (
