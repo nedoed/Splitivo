@@ -26,14 +26,15 @@ export default function GroupsScreen({ navigation }: any) {
   const [creating, setCreating] = useState(false);
 
   const fetchGroups = async () => {
-    const { data: user } = await supabase.auth.getUser();
-    if (!user.user) return;
+    const { data: sessionData } = await supabase.auth.getSession();
+    if (!sessionData.session) return;
+    const user = sessionData.session.user;
 
     // Erst Mitgliedschaften laden, dann Gruppen separat
     const { data: memberships, error: memError } = await supabase
       .from('group_members')
       .select('group_id')
-      .eq('user_id', user.user.id);
+      .eq('user_id', user.id);
 
     if (memError || !memberships || memberships.length === 0) {
       setGroups([]);
@@ -80,22 +81,52 @@ export default function GroupsScreen({ navigation }: any) {
       return;
     }
     setCreating(true);
-    const { data: user } = await supabase.auth.getUser();
-    if (!user.user) return;
 
-    const { data: group, error } = await supabase
-      .from('groups')
-      .insert({ name: groupName.trim(), description: groupDesc.trim() || null, created_by: user.user.id })
-      .select()
-      .single();
+    // getSession() liest den lokalen Cache + stellt sicher dass der
+    // JWT-Token im Authorization-Header mitgeschickt wird
+    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
 
-    if (error) {
-      Alert.alert('Fehler', error.message);
+    console.log('[createGroup] session:', JSON.stringify({
+      userId: sessionData?.session?.user?.id,
+      hasToken: !!sessionData?.session?.access_token,
+      sessionError: sessionError?.message,
+    }));
+
+    if (sessionError || !sessionData.session) {
+      Alert.alert('Nicht eingeloggt', 'Bitte melde dich erneut an.');
       setCreating(false);
       return;
     }
 
-    await supabase.from('group_members').insert({ group_id: group.id, user_id: user.user.id });
+    const userId = sessionData.session.user.id;
+    const insertPayload = {
+      name: groupName.trim(),
+      description: groupDesc.trim() || null,
+      created_by: userId,
+    };
+
+    console.log('[createGroup] inserting:', JSON.stringify(insertPayload));
+
+    const { data: group, error } = await supabase
+      .from('groups')
+      .insert(insertPayload)
+      .select()
+      .single();
+
+    console.log('[createGroup] result:', JSON.stringify({
+      groupId: group?.id,
+      error: error?.message,
+      errorCode: error?.code,
+      errorDetails: error?.details,
+    }));
+
+    if (error) {
+      Alert.alert('Fehler beim Erstellen', `${error.message}\n\nCode: ${error.code}`);
+      setCreating(false);
+      return;
+    }
+
+    await supabase.from('group_members').insert({ group_id: group.id, user_id: userId });
 
     setGroupName('');
     setGroupDesc('');
