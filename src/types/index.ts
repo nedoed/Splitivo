@@ -31,6 +31,7 @@ export interface Expense {
   amount: number;
   description: string;
   category: string;
+  currency: string;
   date: string;
   created_at: string;
   payer?: Profile;
@@ -50,6 +51,7 @@ export interface Debt {
   from_user_id: string;
   to_user_id: string;
   amount: number;
+  currency: string;
   from_profile?: Profile;
   to_profile?: Profile;
 }
@@ -61,5 +63,25 @@ export const CATEGORIES = [
   { label: 'Unterhaltung', value: 'entertainment', icon: '🎉' },
   { label: 'Einkaufen', value: 'shopping', icon: '🛒' },
   { label: 'Gesundheit', value: 'health', icon: '💊' },
+  { label: 'Spesen', value: 'expenses', icon: '💼' },
   { label: 'Sonstiges', value: 'other', icon: '📦' },
 ];
+
+// Mapping OpenAI-Kategorienamen → interne Category-Values
+export const CATEGORY_SCAN_MAP: Record<string, string> = {
+  food: 'food',
+  essen: 'food',
+  transport: 'transport',
+  accommodation: 'accommodation',
+  unterkunft: 'accommodation',
+  entertainment: 'entertainment',
+  unterhaltung: 'entertainment',
+  shopping: 'shopping',
+  einkauf: 'shopping',
+  health: 'health',
+  gesundheit: 'health',
+  expenses: 'expenses',
+  spesen: 'expenses',
+  other: 'other',
+  sonstiges: 'other',
+};

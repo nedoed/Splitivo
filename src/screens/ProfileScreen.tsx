@@ -2,6 +2,7 @@ import React, { useState, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, Alert,
   ActivityIndicator, Image, ScrollView, RefreshControl,
+  TextInput, Modal, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
@@ -15,6 +16,9 @@ export default function ProfileScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [stats, setStats] = useState({ groups: 0, expenses: 0, totalPaid: 0 });
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [editUsernameVisible, setEditUsernameVisible] = useState(false);
+  const [newUsername, setNewUsername] = useState('');
+  const [savingUsername, setSavingUsername] = useState(false);
 
   const fetchProfile = async () => {
     const { data: user } = await supabase.auth.getUser();
@@ -96,6 +100,39 @@ export default function ProfileScreen() {
     }
   };
 
+  const openEditUsername = () => {
+    setNewUsername(profile?.username ?? '');
+    setEditUsernameVisible(true);
+  };
+
+  const saveUsername = async () => {
+    const trimmed = newUsername.trim();
+    if (!trimmed) {
+      Alert.alert('Fehler', 'Benutzername darf nicht leer sein.');
+      return;
+    }
+    if (trimmed.length < 3) {
+      Alert.alert('Fehler', 'Mindestens 3 Zeichen erforderlich.');
+      return;
+    }
+    setSavingUsername(true);
+    const { data: userData } = await supabase.auth.getUser();
+    if (!userData.user) return;
+
+    const { error } = await supabase
+      .from('profiles')
+      .update({ username: trimmed })
+      .eq('id', userData.user.id);
+
+    setSavingUsername(false);
+    if (error) {
+      Alert.alert('Fehler', error.message);
+    } else {
+      setEditUsernameVisible(false);
+      fetchProfile();
+    }
+  };
+
   const handleSignOut = async () => {
     Alert.alert('Abmelden', 'Möchtest du dich wirklich abmelden?', [
       { text: 'Abbrechen', style: 'cancel' },
@@ -146,7 +183,10 @@ export default function ProfileScreen() {
           </View>
         </TouchableOpacity>
 
-        <Text style={styles.username}>{profile?.username ?? 'Benutzer'}</Text>
+        <TouchableOpacity style={styles.usernameRow} onPress={openEditUsername}>
+          <Text style={styles.username}>{profile?.username ?? 'Benutzer'}</Text>
+          <Text style={styles.usernameEditIcon}>✏️</Text>
+        </TouchableOpacity>
         <Text style={styles.email}>{profile?.email ?? ''}</Text>
         <Text style={styles.joinDate}>
           Dabei seit {new Date(profile?.created_at ?? '').toLocaleDateString('de-DE', { month: 'long', year: 'numeric' })}
@@ -170,6 +210,11 @@ export default function ProfileScreen() {
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Konto</Text>
+        <TouchableOpacity style={styles.menuItem} onPress={openEditUsername}>
+          <Text style={styles.menuIcon}>✏️</Text>
+          <Text style={styles.menuLabel}>Benutzername ändern</Text>
+          <Text style={styles.menuArrow}>›</Text>
+        </TouchableOpacity>
         <TouchableOpacity style={styles.menuItem} onPress={changeAvatar}>
           <Text style={styles.menuIcon}>🖼️</Text>
           <Text style={styles.menuLabel}>Profilbild ändern</Text>
@@ -181,6 +226,47 @@ export default function ProfileScreen() {
         <Text style={styles.signOutText}>Abmelden</Text>
       </TouchableOpacity>
     </ScrollView>
+
+    {/* Username-Edit Modal */}
+    <Modal visible={editUsernameVisible} animationType="slide" transparent>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={{ flex: 1 }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Benutzername ändern</Text>
+            <TextInput
+              style={styles.modalInput}
+              value={newUsername}
+              onChangeText={setNewUsername}
+              placeholder="Neuer Benutzername"
+              placeholderTextColor="#bbb"
+              autoFocus
+              autoCapitalize="none"
+              returnKeyType="done"
+              onSubmitEditing={saveUsername}
+            />
+            <TouchableOpacity
+              style={[styles.modalSaveBtn, savingUsername && { opacity: 0.7 }]}
+              onPress={saveUsername}
+              disabled={savingUsername}
+            >
+              {savingUsername
+                ? <ActivityIndicator color="#fff" />
+                : <Text style={styles.modalSaveBtnText}>Speichern</Text>
+              }
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.modalCancel}
+              onPress={() => setEditUsernameVisible(false)}
+            >
+              <Text style={styles.modalCancelText}>Abbrechen</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
     </SafeAreaView>
   );
 }
@@ -202,7 +288,9 @@ const styles = StyleSheet.create({
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 4, elevation: 3,
   },
   editBadgeText: { fontSize: 12 },
-  username: { fontSize: 22, fontWeight: '700', color: '#1a1a2e', marginBottom: 4 },
+  usernameRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
+  usernameEditIcon: { fontSize: 14, marginLeft: 6, opacity: 0.5 },
+  username: { fontSize: 22, fontWeight: '700', color: '#1a1a2e' },
   email: { fontSize: 14, color: '#888', marginBottom: 4 },
   joinDate: { fontSize: 13, color: '#aaa' },
   statsRow: { flexDirection: 'row', gap: 12, marginBottom: 24 },
@@ -227,4 +315,19 @@ const styles = StyleSheet.create({
     paddingVertical: 16, alignItems: 'center', marginTop: 8,
   },
   signOutText: { color: '#FF4444', fontSize: 16, fontWeight: '600' },
+
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
+  modalCard: { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24 },
+  modalTitle: { fontSize: 18, fontWeight: '700', color: '#1a1a2e', marginBottom: 20 },
+  modalInput: {
+    borderWidth: 1.5, borderColor: '#E8E8F0', borderRadius: 12,
+    paddingHorizontal: 16, paddingVertical: 14, fontSize: 16,
+    color: '#1a1a2e', backgroundColor: '#F8F8FF', marginBottom: 16,
+  },
+  modalSaveBtn: {
+    backgroundColor: '#6C63FF', borderRadius: 12, paddingVertical: 16, alignItems: 'center', marginBottom: 8,
+  },
+  modalSaveBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  modalCancel: { alignItems: 'center', paddingVertical: 12 },
+  modalCancelText: { color: '#888', fontSize: 15 },
 });

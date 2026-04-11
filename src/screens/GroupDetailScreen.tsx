@@ -125,10 +125,22 @@ export default function GroupDetailScreen({ route, navigation }: any) {
     return CATEGORIES.find((c) => c.value === cat)?.icon ?? '📦';
   };
 
-  const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
+  const totalByCurrency = expenses.reduce((acc, e) => {
+    const cur = (e as any).currency ?? 'CHF';
+    acc[cur] = (acc[cur] ?? 0) + e.amount;
+    return acc;
+  }, {} as Record<string, number>);
+
+  const totalExpensesLabel = Object.entries(totalByCurrency)
+    .map(([cur, amt]) => `${amt.toFixed(2)} ${cur}`)
+    .join(' + ') || '0.00 CHF';
 
   const renderExpense = ({ item }: { item: Expense }) => (
-    <View style={styles.expenseCard}>
+    <TouchableOpacity
+      style={styles.expenseCard}
+      onPress={() => navigation.navigate('ExpenseDetail', { expense: item, members })}
+      activeOpacity={0.7}
+    >
       <View style={styles.expenseIcon}>
         <Text style={styles.expenseIconText}>{getCategoryIcon(item.category)}</Text>
       </View>
@@ -138,8 +150,11 @@ export default function GroupDetailScreen({ route, navigation }: any) {
           {(item as any).payer?.username ?? 'Unbekannt'} • {new Date(item.date).toLocaleDateString('de-DE')}
         </Text>
       </View>
-      <Text style={styles.expenseAmount}>{item.amount.toFixed(2)} €</Text>
-    </View>
+      <View style={{ alignItems: 'flex-end' }}>
+        <Text style={styles.expenseAmount}>{item.amount.toFixed(2)} {(item as any).currency ?? 'CHF'}</Text>
+        <Text style={styles.expenseChevron}>›</Text>
+      </View>
+    </TouchableOpacity>
   );
 
   return (
@@ -148,7 +163,7 @@ export default function GroupDetailScreen({ route, navigation }: any) {
         <View style={styles.summaryRow}>
           <View>
             <Text style={styles.summaryLabel}>Gesamtausgaben</Text>
-            <Text style={styles.summaryAmount}>{totalExpenses.toFixed(2)} €</Text>
+            <Text style={styles.summaryAmount}>{totalExpensesLabel}</Text>
           </View>
           <View style={styles.membersRow}>
             {members.slice(0, 4).map((m, i) => (
@@ -267,6 +282,7 @@ const styles = StyleSheet.create({
   expenseName: { fontSize: 15, fontWeight: '600', color: '#1a1a2e' },
   expensePayer: { fontSize: 12, color: '#888', marginTop: 2 },
   expenseAmount: { fontSize: 16, fontWeight: '700', color: '#6C63FF' },
+  expenseChevron: { fontSize: 16, color: '#ccc', marginTop: 2 },
   emptyState: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 },
   emptyIcon: { fontSize: 56, marginBottom: 16 },
   emptyTitle: { fontSize: 18, fontWeight: '700', color: '#1a1a2e', marginBottom: 8 },

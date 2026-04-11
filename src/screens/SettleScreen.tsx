@@ -6,6 +6,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { supabase } from '../lib/supabase';
+import { notifyUser } from '../lib/notifications';
 import { Debt } from '../types';
 
 export default function SettleScreen() {
@@ -35,7 +36,7 @@ export default function SettleScreen() {
 
     const { data: expenses } = await supabase
       .from('expenses')
-      .select('id, paid_by, amount')
+      .select('id, paid_by, amount, currency')
       .in('group_id', groupIds);
 
     if (!expenses) {
@@ -45,12 +46,12 @@ export default function SettleScreen() {
     }
 
     const expenseIds = expenses.map((e) => e.id);
-    const paidByMap: { [key: string]: string } = {};
-    expenses.forEach((e) => { paidByMap[e.id] = e.paid_by; });
+    const expenseMap: { [id: string]: { paid_by: string; currency: string } } = {};
+    expenses.forEach((e) => { expenseMap[e.id] = { paid_by: e.paid_by, currency: e.currency ?? 'CHF' }; });
 
     const { data: splits } = await supabase
       .from('expense_splits')
-      .select('*, expense:expenses!expense_id(paid_by)')
+      .select('*, expense:expenses!expense_id(paid_by, currency)')
       .in('expense_id', expenseIds)
       .eq('is_settled', false);
 
@@ -60,25 +61,26 @@ export default function SettleScreen() {
       return;
     }
 
-    const balances: { [key: string]: { [key: string]: number } } = {};
+    // key: "debtor|creditor|currency"
+    const balances: { [key: string]: number } = {};
 
     splits.forEach((split: any) => {
       const debtor = split.user_id;
       const creditor = split.expense?.paid_by;
+      const cur = split.expense?.currency ?? 'CHF';
       if (!creditor || debtor === creditor) return;
-
-      if (!balances[debtor]) balances[debtor] = {};
-      balances[debtor][creditor] = (balances[debtor][creditor] || 0) + split.amount;
+      const key = `${debtor}|${creditor}|${cur}`;
+      balances[key] = (balances[key] ?? 0) + split.amount;
     });
 
     const rawDebts: Debt[] = [];
-    Object.entries(balances).forEach(([debtor, creditors]) => {
-      Object.entries(creditors).forEach(([creditor, amount]) => {
-        const netAmount = amount - (balances[creditor]?.[debtor] || 0);
-        if (netAmount > 0.01) {
-          rawDebts.push({ from_user_id: debtor, to_user_id: creditor, amount: netAmount });
-        }
-      });
+    Object.entries(balances).forEach(([key, amount]) => {
+      const [debtor, creditor, cur] = key.split('|');
+      const reverseKey = `${creditor}|${debtor}|${cur}`;
+      const netAmount = amount - (balances[reverseKey] ?? 0);
+      if (netAmount > 0.01) {
+        rawDebts.push({ from_user_id: debtor, to_user_id: creditor, amount: netAmount, currency: cur });
+      }
     });
 
     const userIds = [...new Set(rawDebts.flatMap((d) => [d.from_user_id, d.to_user_id]))];
@@ -111,7 +113,7 @@ export default function SettleScreen() {
   const settleDebt = async (debt: Debt) => {
     Alert.alert(
       'Schuld begleichen',
-      `Möchtest du ${debt.amount.toFixed(2)} € an ${debt.to_profile?.username} als bezahlt markieren?`,
+      `Möchtest du ${debt.amount.toFixed(2)} ${debt.currency} an ${debt.to_profile?.username} als bezahlt markieren?`,
       [
         { text: 'Abbrechen', style: 'cancel' },
         {
@@ -134,6 +136,13 @@ export default function SettleScreen() {
                 .from('expense_splits')
                 .update({ is_settled: true })
                 .in('id', toSettle);
+
+              const debtorName = debt.from_profile?.username ?? 'Jemand';
+              notifyUser(
+                debt.to_user_id,
+                'Schuld beglichen ✅',
+                `${debtorName} hat ${debt.amount.toFixed(2)} ${debt.currency} als bezahlt markiert.`
+              );
             }
 
             fetchDebts();
@@ -143,13 +152,20 @@ export default function SettleScreen() {
     );
   };
 
-  const totalOwed = debts
-    .filter((d) => d.from_user_id === currentUserId)
-    .reduce((sum, d) => sum + d.amount, 0);
+  const formatTotals = (ds: Debt[]) => {
+    const byCur = ds.reduce((acc, d) => {
+      acc[d.currency] = (acc[d.currency] ?? 0) + d.amount;
+      return acc;
+    }, {} as Record<string, number>);
+    const entries = Object.entries(byCur);
+    if (entries.length === 0) return '0.00 CHF';
+    return entries.map(([c, a]) => `${a.toFixed(2)} ${c}`).join('\n');
+  };
 
-  const totalOwing = debts
-    .filter((d) => d.to_user_id === currentUserId)
-    .reduce((sum, d) => sum + d.amount, 0);
+  const owedDebts = debts.filter((d) => d.from_user_id === currentUserId);
+  const owingDebts = debts.filter((d) => d.to_user_id === currentUserId);
+  const totalOwedLabel = formatTotals(owedDebts);
+  const totalOwingLabel = formatTotals(owingDebts);
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
@@ -160,11 +176,11 @@ export default function SettleScreen() {
       <View style={styles.summaryRow}>
         <View style={[styles.summaryCard, styles.cardRed]}>
           <Text style={styles.summaryLabel}>Du schuldest</Text>
-          <Text style={[styles.summaryAmount, styles.amountRed]}>{totalOwed.toFixed(2)} €</Text>
+          <Text style={[styles.summaryAmount, styles.amountRed]}>{totalOwedLabel}</Text>
         </View>
         <View style={[styles.summaryCard, styles.cardGreen]}>
           <Text style={styles.summaryLabel}>Dir schuldet man</Text>
-          <Text style={[styles.summaryAmount, styles.amountGreen]}>{totalOwing.toFixed(2)} €</Text>
+          <Text style={[styles.summaryAmount, styles.amountGreen]}>{totalOwingLabel}</Text>
         </View>
       </View>
 
@@ -198,7 +214,7 @@ export default function SettleScreen() {
                     {isDebtor ? item.to_profile?.username : item.from_profile?.username}
                   </Text>
                   <Text style={[styles.debtAmount, isDebtor ? styles.amountRed : styles.amountGreen]}>
-                    {item.amount.toFixed(2)} €
+                    {item.amount.toFixed(2)} {item.currency}
                   </Text>
                 </View>
                 {isDebtor && (

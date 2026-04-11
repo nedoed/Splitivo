@@ -79,7 +79,7 @@ export default function ActivityScreen() {
               {(expense as any).payer?.username ?? 'Du'} • {(expense as any).groups?.name ?? ''}
             </Text>
           </View>
-          <Text style={styles.expenseAmount}>{expense.amount.toFixed(2)} €</Text>
+          <Text style={styles.expenseAmount}>{expense.amount.toFixed(2)} {(expense as any).currency ?? 'CHF'}</Text>
         </View>
       ))}
     </View>

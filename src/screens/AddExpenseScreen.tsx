@@ -6,8 +6,28 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system/legacy';
+
+// base64 → Uint8Array (kein Buffer-Polyfill nötig)
+function decode(base64: string): Uint8Array {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+  const lookup = new Uint8Array(256);
+  for (let i = 0; i < chars.length; i++) lookup[chars.charCodeAt(i)] = i;
+  const str = base64.replace(/=+$/, '');
+  const bytes = new Uint8Array(Math.floor((str.length * 3) / 4));
+  let j = 0;
+  for (let i = 0; i < str.length; i += 4) {
+    const a = lookup[str.charCodeAt(i)], b = lookup[str.charCodeAt(i + 1)];
+    const c = lookup[str.charCodeAt(i + 2)], d = lookup[str.charCodeAt(i + 3)];
+    bytes[j++] = (a << 2) | (b >> 4);
+    if (i + 2 < str.length) bytes[j++] = ((b & 15) << 4) | (c >> 2);
+    if (i + 3 < str.length) bytes[j++] = ((c & 3) << 6) | d;
+  }
+  return bytes.slice(0, j);
+}
 import { supabase } from '../lib/supabase';
-import { CATEGORIES, GroupMember } from '../types';
+import { notifyGroupMembers } from '../lib/notifications';
+import { CATEGORIES, CATEGORY_SCAN_MAP, GroupMember } from '../types';
 
 export default function AddExpenseScreen({ route, navigation }: any) {
   const { group, members }: { group: any; members: GroupMember[] } = route.params;
@@ -21,6 +41,7 @@ export default function AddExpenseScreen({ route, navigation }: any) {
   const [selectedMembers, setSelectedMembers] = useState<string[]>(
     members.map((m) => m.user_id)
   );
+  const [currency, setCurrency] = useState<'CHF' | 'EUR' | 'USD'>('CHF');
   const [loading, setLoading] = useState(false);
   const [scanLoading, setScanLoading] = useState(false);
   const [receiptImage, setReceiptImage] = useState<string | null>(null);
@@ -55,49 +76,116 @@ export default function AddExpenseScreen({ route, navigation }: any) {
       return;
     }
 
-    const result = await ImagePicker.launchCameraAsync({ base64: true, quality: 0.7 });
+    const result = await ImagePicker.launchCameraAsync({ quality: 0.7 });
     if (result.canceled || !result.assets[0]) return;
 
     const asset = result.assets[0];
-    setReceiptImage(asset.uri);
+    const imageUri = asset.uri;
+    setReceiptImage(imageUri);
     setScanLoading(true);
 
     try {
+      console.log('1. Bild URI:', asset.uri);
+      console.log('API Key vorhanden:', !!process.env.EXPO_PUBLIC_OPENAI_API_KEY);
+      console.log('API Key Anfang:', process.env.EXPO_PUBLIC_OPENAI_API_KEY?.substring(0, 7));
+
+      const base64 = await FileSystem.readAsStringAsync(asset.uri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      console.log('2. Base64 Länge:', base64.length);
+
+      console.log('3. OpenAI Request wird gesendet...');
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
           Authorization: `Bearer ${process.env.EXPO_PUBLIC_OPENAI_API_KEY}`,
+          'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           model: 'gpt-4o',
+          max_tokens: 1500,
           messages: [{
             role: 'user',
             content: [
               {
-                type: 'text',
-                text: 'Lies diesen Kassenbon. Antworte NUR mit JSON: {"amount": 12.50, "description": "Supermarkt", "category": "food"}. Kategorien: food, transport, accommodation, entertainment, shopping, health, other.',
+                type: 'image_url',
+                image_url: { url: `data:image/jpeg;base64,${base64}` },
               },
               {
-                type: 'image_url',
-                image_url: { url: `data:image/jpeg;base64,${asset.base64}` },
+                type: 'text',
+                text: `Analysiere diesen Kassenbon sehr detailliert. Antworte NUR mit diesem JSON Format, kein anderer Text:
+{
+  "total": 45.80,
+  "currency": "CHF",
+  "description": "Migros Einkauf",
+  "category": "food",
+  "items": [
+    { "name": "Milch", "price": 1.50, "quantity": 2, "total": 3.00 },
+    { "name": "Brot", "price": 3.20, "quantity": 1, "total": 3.20 }
+  ]
+}
+Währung: CHF für Schweiz, EUR für Europa, USD für USA.
+Category: food, transport, accommodation, entertainment, shopping, health, expenses, other
+Erkenne alle einzelnen Positionen auf dem Kassenbon.`,
               },
             ],
           }],
-          max_tokens: 100,
         }),
       });
-      const data = await response.json();
-      const content = data.choices?.[0]?.message?.content ?? '';
-      const match = content.match(/\{.*\}/s);
-      if (match) {
-        const parsed = JSON.parse(match[0]);
-        if (parsed.amount) setAmount(String(parsed.amount));
-        if (parsed.description) setDescription(parsed.description);
-        if (parsed.category) setCategory(parsed.category);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.log('4. OpenAI Fehler:', errorText);
+        throw new Error(`OpenAI Error ${response.status}: ${errorText}`);
       }
-    } catch {
-      Alert.alert('Fehler', 'Kassenbon konnte nicht gelesen werden.');
+
+      const data = await response.json();
+      console.log('4. OpenAI Response:', JSON.stringify(data));
+
+      const content = (data.choices?.[0]?.message?.content ?? '').trim();
+      const start = content.indexOf('{');
+      const end = content.lastIndexOf('}');
+      if (start !== -1 && end > start) {
+        const parsed = JSON.parse(content.slice(start, end + 1));
+        console.log('5. Geparste Daten:', JSON.stringify(parsed));
+
+        const mappedCategory = parsed.category
+          ? (CATEGORY_SCAN_MAP[parsed.category.toLowerCase()] ?? parsed.category)
+          : category;
+        const detectedCurrency = parsed.currency && ['CHF', 'EUR', 'USD'].includes(parsed.currency)
+          ? parsed.currency as 'CHF' | 'EUR' | 'USD'
+          : currency;
+
+        // Hat der Scan Positionen erkannt? → ReceiptSplitScreen öffnen
+        if (Array.isArray(parsed.items) && parsed.items.length > 0) {
+          setScanLoading(false);
+          navigation.navigate('ReceiptSplit', {
+            group,
+            members,
+            receiptImageUri: imageUri,
+            scanResult: {
+              total: parsed.total ?? parsed.amount ?? 0,
+              currency: detectedCurrency,
+              description: parsed.description ?? '',
+              category: mappedCategory,
+              items: parsed.items,
+            },
+          });
+          return;
+        }
+
+        // Fallback: kein Positions-Array → Felder manuell befüllen
+        if (parsed.total ?? parsed.amount) setAmount(String(parsed.total ?? parsed.amount));
+        if (parsed.description) setDescription(parsed.description);
+        setCategory(mappedCategory);
+        setCurrency(detectedCurrency);
+      } else {
+        console.log('5. Kein JSON gefunden in:', content);
+        Alert.alert('Hinweis', 'Betrag konnte nicht erkannt werden. Bitte manuell eingeben.');
+      }
+    } catch (e: any) {
+      console.log('Scan Fehler:', e?.message ?? e);
+      Alert.alert('Fehler', e?.message ?? 'Kassenbon konnte nicht gelesen werden.');
     } finally {
       setScanLoading(false);
     }
@@ -124,6 +212,23 @@ export default function AddExpenseScreen({ route, navigation }: any) {
 
     setLoading(true);
     try {
+      // Kassenbon-Foto hochladen falls vorhanden
+      let receiptUrl: string | null = null;
+      if (receiptImage) {
+        const base64 = await FileSystem.readAsStringAsync(receiptImage, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+        const { data: userData } = await supabase.auth.getUser();
+        const fileName = `receipt-${userData.user?.id}-${Date.now()}.jpg`;
+        const { error: uploadError } = await supabase.storage
+          .from('receipts')
+          .upload(fileName, decode(base64), { contentType: 'image/jpeg', upsert: true });
+        if (!uploadError) {
+          const { data: urlData } = supabase.storage.from('receipts').getPublicUrl(fileName);
+          receiptUrl = urlData.publicUrl;
+        }
+      }
+
       const { data: expense, error: expenseError } = await supabase
         .from('expenses')
         .insert({
@@ -132,7 +237,9 @@ export default function AddExpenseScreen({ route, navigation }: any) {
           amount: numAmount,
           description: description.trim(),
           category,
+          currency,
           date,
+          receipt_url: receiptUrl,
         })
         .select()
         .single();
@@ -158,6 +265,14 @@ export default function AddExpenseScreen({ route, navigation }: any) {
         Alert.alert('Fehler', splitError.message);
         return;
       }
+
+      const payerName = getPaidByName();
+      notifyGroupMembers(
+        group.id,
+        paidBy,
+        'Neue Ausgabe 💸',
+        `${payerName} hat „${description.trim()}" (${numAmount.toFixed(2)} €) erfasst.`
+      );
 
       navigation.goBack();
     } catch (e) {
@@ -200,19 +315,35 @@ export default function AddExpenseScreen({ route, navigation }: any) {
           <Image source={{ uri: receiptImage }} style={styles.receiptPreview} resizeMode="cover" />
         )}
 
-        {/* Betrag */}
-        <Text style={styles.label}>Betrag (€)</Text>
-        <TextInput
-          style={[styles.input, styles.amountInput]}
-          placeholder="0,00"
-          value={amount}
-          onChangeText={setAmount}
-          keyboardType="decimal-pad"
-          placeholderTextColor="#bbb"
-          returnKeyType="next"
-          onSubmitEditing={() => descriptionRef.current?.focus()}
-          blurOnSubmit={false}
-        />
+        {/* Betrag + Währung */}
+        <Text style={styles.label}>Betrag</Text>
+        <View style={styles.amountRow}>
+          <TextInput
+            style={[styles.input, styles.amountInput]}
+            placeholder="0,00"
+            value={amount}
+            onChangeText={setAmount}
+            keyboardType="decimal-pad"
+            placeholderTextColor="#bbb"
+            returnKeyType="next"
+            onSubmitEditing={() => descriptionRef.current?.focus()}
+            blurOnSubmit={false}
+          />
+          <View style={styles.currencyPicker}>
+            {(['CHF', 'EUR', 'USD'] as const).map((c) => (
+              <TouchableOpacity
+                key={c}
+                style={[styles.currencyBtn, currency === c && styles.currencyBtnActive]}
+                onPress={() => setCurrency(c)}
+              >
+                <Text style={[styles.currencyBtnText, currency === c && styles.currencyBtnTextActive]}>
+                  {c === 'CHF' ? '🇨🇭' : c === 'EUR' ? '🇪🇺' : '🇺🇸'}
+                </Text>
+                <Text style={[styles.currencyCode, currency === c && styles.currencyCodeActive]}>{c}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
 
         {/* Beschreibung */}
         <Text style={styles.label}>Beschreibung</Text>
@@ -305,10 +436,10 @@ export default function AddExpenseScreen({ route, navigation }: any) {
           <View style={styles.splitPreview}>
             <Text style={styles.splitPreviewLabel}>Aufteilung</Text>
             <Text style={styles.splitPreviewAmount}>
-              {splitAmount.toFixed(2)} € pro Person
+              {splitAmount.toFixed(2)} {currency} pro Person
             </Text>
             <Text style={styles.splitPreviewSub}>
-              {selectedMembers.length} Person{selectedMembers.length !== 1 ? 'en' : ''} • Gesamt {parseFloat(amount.replace(',', '.')).toFixed(2)} €
+              {selectedMembers.length} Person{selectedMembers.length !== 1 ? 'en' : ''} • Gesamt {parseFloat(amount.replace(',', '.')).toFixed(2)} {currency}
             </Text>
           </View>
         )}
@@ -390,7 +521,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16, paddingVertical: 14, fontSize: 15,
     color: '#1a1a2e', backgroundColor: '#fff', marginBottom: 16,
   },
-  amountInput: { fontSize: 22, fontWeight: '700', color: '#1a1a2e', textAlign: 'center' },
+  amountRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 16 },
+  amountInput: { flex: 1, fontSize: 22, fontWeight: '700', color: '#1a1a2e', textAlign: 'center', marginBottom: 0 },
+  currencyPicker: { flexDirection: 'column', gap: 4 },
+  currencyBtn: {
+    alignItems: 'center', paddingHorizontal: 10, paddingVertical: 5,
+    borderRadius: 8, borderWidth: 1.5, borderColor: '#E8E8F0', backgroundColor: '#fff',
+  },
+  currencyBtnActive: { backgroundColor: '#EEF0FF', borderColor: '#6C63FF' },
+  currencyBtnText: { fontSize: 14 },
+  currencyBtnTextActive: {},
+  currencyCode: { fontSize: 9, fontWeight: '600', color: '#888', marginTop: 1 },
+  currencyCodeActive: { color: '#6C63FF' },
 
   pickerBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',

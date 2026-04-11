@@ -6,8 +6,11 @@ import { Text } from 'react-native';
 import GroupsScreen from '../screens/GroupsScreen';
 import GroupDetailScreen from '../screens/GroupDetailScreen';
 import AddExpenseScreen from '../screens/AddExpenseScreen';
+import ExpenseDetailScreen from '../screens/ExpenseDetailScreen';
+import ReceiptSplitScreen from '../screens/ReceiptSplitScreen';
 import ActivityScreen from '../screens/ActivityScreen';
 import SettleScreen from '../screens/SettleScreen';
+import SpesaScreen from '../screens/SpesaScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 
 const Tab = createBottomTabNavigator();
@@ -29,6 +32,8 @@ function GroupsStack() {
         options={({ route }: any) => ({ title: route.params?.group?.name ?? 'Gruppe' })}
       />
       <Stack.Screen name="AddExpense" component={AddExpenseScreen} options={{ title: 'Ausgabe hinzufügen' }} />
+      <Stack.Screen name="ExpenseDetail" component={ExpenseDetailScreen} options={{ title: 'Ausgabe' }} />
+      <Stack.Screen name="ReceiptSplit" component={ReceiptSplitScreen} options={{ title: 'Kassenbon aufteilen' }} />
     </Stack.Navigator>
   );
 }
@@ -37,6 +42,7 @@ const TAB_ICONS: { [key: string]: { active: string; inactive: string } } = {
   Gruppen: { active: '👥', inactive: '👤' },
   Aktivität: { active: '📋', inactive: '📋' },
   Abrechnen: { active: '💸', inactive: '💰' },
+  Spesen: { active: '💼', inactive: '💼' },
   Profil: { active: '👤', inactive: '🙂' },
 };
 
@@ -68,6 +74,7 @@ export default function AppNavigator() {
       <Tab.Screen name="Gruppen" component={GroupsStack} />
       <Tab.Screen name="Aktivität" component={ActivityScreen} />
       <Tab.Screen name="Abrechnen" component={SettleScreen} />
+      <Tab.Screen name="Spesen" component={SpesaScreen} />
       <Tab.Screen name="Profil" component={ProfileScreen} />
     </Tab.Navigator>
   );

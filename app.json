@@ -28,9 +28,23 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
+    "extra": {
+      "eas": {
+        "projectId": "9672cd34-1991-4f2a-930b-b40995a90dcb"
+      }
+    },
     "plugins": [
       "expo-camera",
       "expo-image-picker",
+      "expo-file-system",
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Benötigt um Spesen-Exporte zu speichern.",
+          "savePhotosPermission": "Benötigt um Spesen-Exporte zu speichern.",
+          "isAccessMediaLocationEnabled": false
+        }
+      ],
       [
         "expo-notifications",
         {
