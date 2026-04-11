@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  Modal, Alert, ActivityIndicator,
+  Modal, Alert, ActivityIndicator, TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -54,6 +54,10 @@ export default function ReceiptSplitScreen({ route, navigation }: any) {
   const [items, setItems] = useState<ReceiptItem[]>(
     scanResult.items.map((item) => ({ ...item, assignedTo: 'all' }))
   );
+  // Separate String-State für Preis-TextInputs (verhindert Tipp-Unterbrechungen)
+  const [itemPriceTexts, setItemPriceTexts] = useState<string[]>(
+    scanResult.items.map((item) => item.total.toFixed(2))
+  );
   const [paidBy, setPaidBy] = useState('');
   const [saving, setSaving] = useState(false);
   const [itemPickerVisible, setItemPickerVisible] = useState(false);
@@ -84,6 +88,17 @@ export default function ReceiptSplitScreen({ route, navigation }: any) {
 
   const assignItem = (index: number, assignedTo: string) => {
     setItems((prev) => prev.map((item, i) => (i === index ? { ...item, assignedTo } : item)));
+  };
+
+  const updateItemPriceText = (index: number, text: string) => {
+    setItemPriceTexts((prev) => prev.map((t, i) => (i === index ? text : t)));
+  };
+
+  const commitItemPrice = (index: number, text: string) => {
+    const parsed = parseFloat(text.replace(',', '.'));
+    const newTotal = isNaN(parsed) || parsed < 0 ? 0 : parsed;
+    setItems((prev) => prev.map((item, i) => (i === index ? { ...item, total: newTotal } : item)));
+    setItemPriceTexts((prev) => prev.map((t, i) => (i === index ? newTotal.toFixed(2) : t)));
   };
 
   const getAssignedName = (assignedTo: string) => {
@@ -127,7 +142,7 @@ export default function ReceiptSplitScreen({ route, navigation }: any) {
         .insert({
           group_id: group.id,
           paid_by: paidBy,
-          amount: scanResult.total,
+          amount: totalAmount,
           description: scanResult.description,
           category: scanResult.category,
           currency: scanResult.currency,
@@ -180,13 +195,14 @@ export default function ReceiptSplitScreen({ route, navigation }: any) {
   const splits = calculateSplits();
   const { currency } = scanResult;
   const activeItem = itemPickerIndex >= 0 ? items[itemPickerIndex] : null;
+  const totalAmount = items.reduce((sum, item) => sum + item.total, 0);
 
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
       {/* Header */}
       <View style={styles.headerCard}>
         <Text style={styles.headerTitle}>{scanResult.description}</Text>
-        <Text style={styles.headerAmount}>{scanResult.total.toFixed(2)} {currency}</Text>
+        <Text style={styles.headerAmount}>{totalAmount.toFixed(2)} {currency}</Text>
         <Text style={styles.headerSub}>{scanResult.items.length} Positionen erkannt</Text>
       </View>
 
@@ -204,7 +220,17 @@ export default function ReceiptSplitScreen({ route, navigation }: any) {
                   </Text>
                 )}
               </View>
-              <Text style={styles.itemTotal}>{item.total.toFixed(2)} {currency}</Text>
+              <View style={styles.priceInputWrapper}>
+                <TextInput
+                  style={styles.priceInput}
+                  value={itemPriceTexts[index]}
+                  onChangeText={(text) => updateItemPriceText(index, text)}
+                  onEndEditing={(e) => commitItemPrice(index, e.nativeEvent.text)}
+                  keyboardType="decimal-pad"
+                  selectTextOnFocus
+                />
+                <Text style={styles.priceCurrency}>{currency}</Text>
+              </View>
             </View>
             <TouchableOpacity
               style={styles.assignPicker}
@@ -217,6 +243,7 @@ export default function ReceiptSplitScreen({ route, navigation }: any) {
             </TouchableOpacity>
           </View>
         ))}
+        <Text style={styles.priceHint}>Tippe auf einen Preis um ihn zu ändern</Text>
 
         {/* Zusammenfassung */}
         <Text style={[styles.sectionTitle, { marginTop: 8 }]}>ZUSAMMENFASSUNG</Text>
@@ -371,6 +398,15 @@ const styles = StyleSheet.create({
   itemName: { fontSize: 15, fontWeight: '600', color: '#1a1a2e' },
   itemQty: { fontSize: 12, color: '#888', marginTop: 2 },
   itemTotal: { fontSize: 16, fontWeight: '700', color: '#1a1a2e' },
+  priceInputWrapper: { flexDirection: 'row', alignItems: 'center' },
+  priceInput: {
+    borderWidth: 1.5, borderColor: '#6C63FF', borderRadius: 8,
+    paddingHorizontal: 8, paddingVertical: 4,
+    width: 72, textAlign: 'right', fontSize: 15, fontWeight: '700',
+    color: '#1a1a2e', backgroundColor: '#F8F8FF',
+  },
+  priceCurrency: { fontSize: 12, color: '#888', marginLeft: 4, fontWeight: '600' },
+  priceHint: { fontSize: 11, color: '#aaa', textAlign: 'center', marginTop: 2, marginBottom: 8 },
 
   assignPicker: {
     flexDirection: 'row', alignItems: 'center',

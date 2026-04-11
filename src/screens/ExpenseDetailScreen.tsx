@@ -85,6 +85,11 @@ export default function ExpenseDetailScreen({ route, navigation }: any) {
     setEditAmount(String(enriched.amount));
     setEditCategory(enriched.category);
     setLoading(false);
+
+    // DEBUG – Receipt URL
+    console.log('[ExpenseDetail] receipt_url:', enriched.receipt_url);
+    console.log('[ExpenseDetail] receipt_url Typ:', typeof enriched.receipt_url);
+    console.log('[ExpenseDetail] receipt_url Länge:', enriched.receipt_url?.length ?? 0);
   }, [initialExpense.id]);
 
   useEffect(() => { loadExpense(); }, [loadExpense]);
@@ -253,7 +258,10 @@ export default function ExpenseDetailScreen({ route, navigation }: any) {
         {expense.receipt_url && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Kassenbon</Text>
-            <TouchableOpacity onPress={() => setReceiptFullscreen(true)} activeOpacity={0.85}>
+            <TouchableOpacity onPress={() => {
+          console.log('[Thumbnail] Antippen → receipt_url:', expense.receipt_url);
+          setReceiptFullscreen(true);
+        }} activeOpacity={0.85}>
               <Image
                 source={{ uri: expense.receipt_url }}
                 style={styles.receiptThumb}
@@ -296,18 +304,42 @@ export default function ExpenseDetailScreen({ route, navigation }: any) {
       </ScrollView>
 
       {/* ── Kassenbon Vollbild-Modal ─────────────────────────────────── */}
-      <Modal visible={receiptFullscreen} animationType="fade" statusBarTranslucent>
+      <Modal
+        visible={receiptFullscreen}
+        animationType="fade"
+        transparent={false}
+        statusBarTranslucent
+        onRequestClose={() => setReceiptFullscreen(false)}
+      >
         <View style={styles.fullscreenModal}>
-          <TouchableOpacity style={styles.fullscreenClose} onPress={() => setReceiptFullscreen(false)}>
-            <Text style={styles.fullscreenCloseText}>✕</Text>
-          </TouchableOpacity>
-          {expense.receipt_url && (
+          {/* TEST: Hardcoded Bild – falls das geht, liegt das Problem an receipt_url */}
+          <Image
+            source={{ uri: 'https://picsum.photos/400/800' }}
+            style={[StyleSheet.absoluteFill, { opacity: 0.15 }]}
+            resizeMode="cover"
+            onLoad={() => console.log('[Modal] Test-Bild geladen ✅')}
+            onError={(e) => console.log('[Modal] Test-Bild Fehler ❌', e.nativeEvent.error)}
+          />
+
+          {/* Echtes Kassenbon-Bild */}
+          {expense.receipt_url ? (
             <Image
               source={{ uri: expense.receipt_url }}
-              style={styles.fullscreenImage}
+              style={StyleSheet.absoluteFill}
               resizeMode="contain"
+              onLoad={() => console.log('[Modal] Kassenbon geladen ✅', expense.receipt_url)}
+              onError={(e) => console.log('[Modal] Kassenbon Fehler ❌', e.nativeEvent.error, 'URL:', expense.receipt_url)}
             />
+          ) : (
+            <View style={{ alignItems: 'center' }}>
+              <Text style={{ color: '#fff', fontSize: 16, marginBottom: 8 }}>Kein Kassenbon gespeichert</Text>
+              <Text style={{ color: '#aaa', fontSize: 12 }}>receipt_url ist leer</Text>
+            </View>
           )}
+
+          <TouchableOpacity style={styles.fullscreenClose} onPress={() => setReceiptFullscreen(false)}>
+            <Text style={styles.fullscreenCloseText}>✕ Schliessen</Text>
+          </TouchableOpacity>
         </View>
       </Modal>
     </SafeAreaView>
@@ -431,9 +463,8 @@ const styles = StyleSheet.create({
   fullscreenModal: { flex: 1, backgroundColor: '#000', justifyContent: 'center', alignItems: 'center' },
   fullscreenClose: {
     position: 'absolute', top: 56, right: 20, zIndex: 10,
-    width: 40, height: 40, borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 20,
+    paddingHorizontal: 14, paddingVertical: 8,
   },
-  fullscreenCloseText: { color: '#fff', fontSize: 18, fontWeight: '700' },
-  fullscreenImage: { width: '100%', height: '85%' },
+  fullscreenCloseText: { color: '#fff', fontSize: 14, fontWeight: '700' },
 });
