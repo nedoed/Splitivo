@@ -13,9 +13,26 @@ import ActivityScreen from '../screens/ActivityScreen';
 import SettleScreen from '../screens/SettleScreen';
 import SpesaScreen from '../screens/SpesaScreen';
 import ProfileScreen from '../screens/ProfileScreen';
+import FriendsScreen from '../screens/FriendsScreen';
+import StatsScreen from '../screens/StatsScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
+
+const HEADER_OPTIONS = {
+  headerStyle: { backgroundColor: '#fff', elevation: 0, shadowOpacity: 0 },
+  headerTitleStyle: { fontWeight: '700' as const, color: '#1a1a2e', fontSize: 18 },
+  headerTintColor: '#6C63FF',
+};
+
+function ProfileStack() {
+  return (
+    <Stack.Navigator screenOptions={HEADER_OPTIONS}>
+      <Stack.Screen name="ProfileMain" component={ProfileScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="Friends" component={FriendsScreen} options={{ title: 'Freunde' }} />
+    </Stack.Navigator>
+  );
+}
 
 function GroupsStack() {
   return (
@@ -42,6 +59,7 @@ function GroupsStack() {
 const TAB_ICONS: { [key: string]: { active: string; inactive: string } } = {
   Gruppen: { active: '👥', inactive: '👤' },
   Aktivität: { active: '📋', inactive: '📋' },
+  Statistiken: { active: '📊', inactive: '📈' },
   Abrechnen: { active: '💸', inactive: '💰' },
   Spesen: { active: '💼', inactive: '💼' },
   Profil: { active: '👤', inactive: '🙂' },
@@ -69,7 +87,7 @@ export default function AppNavigator() {
           shadowRadius: 12,
           elevation: 10,
           paddingBottom: 6,
-          height: 60,
+          height: 62,
         },
         tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
         headerShown: false,
@@ -77,9 +95,10 @@ export default function AppNavigator() {
     >
       <Tab.Screen name="Gruppen" component={GroupsStack} />
       <Tab.Screen name="Aktivität" component={ActivityScreen} />
+      <Tab.Screen name="Statistiken" component={StatsScreen} />
       <Tab.Screen name="Abrechnen" component={SettleScreen} />
       <Tab.Screen name="Spesen" component={SpesaScreen} />
-      <Tab.Screen name="Profil" component={ProfileScreen} />
+      <Tab.Screen name="Profil" component={ProfileStack} />
     </Tab.Navigator>
   );
 }

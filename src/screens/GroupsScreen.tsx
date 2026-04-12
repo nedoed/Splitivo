@@ -23,6 +23,7 @@ import { supabase } from '../lib/supabase';
 import { haptics } from '../lib/haptics';
 import { Group } from '../types';
 import EmptyState from '../components/EmptyState';
+import { joinGroupWithCode } from '../lib/invites';
 
 // ─── Swipeable Card ────────────────────────────────────────────────────────────
 
@@ -155,6 +156,11 @@ export default function GroupsScreen({ navigation }: any) {
   const [currentUserId, setCurrentUserId] = useState('');
   const descRef = useRef<TextInput>(null);
 
+  // Per Code beitreten
+  const [codeModal, setCodeModal] = useState(false);
+  const [joinCode, setJoinCode] = useState('');
+  const [joining, setJoining] = useState(false);
+
   const fetchGroups = async () => {
     const { data: sessionData } = await supabase.auth.getSession();
     if (!sessionData.session) return;
@@ -242,6 +248,24 @@ export default function GroupsScreen({ navigation }: any) {
     setGroups((prev) => prev.filter((g) => g.id !== groupId));
   };
 
+  const handleJoinWithCode = async () => {
+    if (!joinCode.trim()) return;
+    setJoining(true);
+    const result = await joinGroupWithCode(joinCode);
+    setJoining(false);
+
+    if (result.success) {
+      haptics.success();
+      setCodeModal(false);
+      setJoinCode('');
+      fetchGroups();
+      Alert.alert('Willkommen! 🎉', `Du bist der Gruppe „${result.groupName}" beigetreten!`);
+    } else {
+      haptics.error();
+      Alert.alert('Fehler', result.error ?? 'Beitritt fehlgeschlagen');
+    }
+  };
+
   const leaveGroup = async (groupId: string) => {
     const { error } = await supabase
       .from('group_members')
@@ -268,9 +292,17 @@ export default function GroupsScreen({ navigation }: any) {
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <View style={styles.header}>
         <Text style={styles.title}>Meine Gruppen</Text>
-        <TouchableOpacity style={styles.addBtn} onPress={() => setModalVisible(true)}>
-          <Text style={styles.addBtnText}>+ Neu</Text>
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          <TouchableOpacity
+            style={styles.codeBtn}
+            onPress={() => { haptics.light(); setCodeModal(true); }}
+          >
+            <Text style={styles.codeBtnText}>🔗 Code</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.addBtn} onPress={() => setModalVisible(true)}>
+            <Text style={styles.addBtnText}>+ Neu</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {loading ? (
@@ -300,6 +332,50 @@ export default function GroupsScreen({ navigation }: any) {
           }
         />
       )}
+
+      {/* Per Code beitreten Modal */}
+      <Modal visible={codeModal} animationType="slide" transparent>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+            <View style={styles.modalOverlay}>
+              <View style={styles.modalCard}>
+                <Text style={styles.modalTitle}>Per Code beitreten</Text>
+                <Text style={{ fontSize: 13, color: '#888', marginBottom: 16 }}>
+                  Gib den 8-stelligen Einladungscode ein
+                </Text>
+                <TextInput
+                  style={[styles.input, { textAlign: 'center', fontSize: 24, fontWeight: '800', letterSpacing: 4 }]}
+                  placeholder="ABCD1234"
+                  value={joinCode}
+                  onChangeText={(t) => setJoinCode(t.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
+                  autoCapitalize="characters"
+                  maxLength={8}
+                  placeholderTextColor="#ccc"
+                  returnKeyType="done"
+                  onSubmitEditing={handleJoinWithCode}
+                  autoFocus
+                />
+                <TouchableOpacity
+                  style={[styles.button, (joining || joinCode.length < 8) && styles.buttonDisabled]}
+                  onPress={handleJoinWithCode}
+                  disabled={joining || joinCode.length < 8}
+                >
+                  {joining
+                    ? <ActivityIndicator color="#fff" />
+                    : <Text style={styles.buttonText}>Gruppe beitreten</Text>
+                  }
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.cancelBtn}
+                  onPress={() => { setCodeModal(false); setJoinCode(''); }}
+                >
+                  <Text style={styles.cancelText}>Abbrechen</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </TouchableWithoutFeedback>
+        </KeyboardAvoidingView>
+      </Modal>
 
       <Modal visible={modalVisible} animationType="slide" transparent>
         <KeyboardAvoidingView
@@ -362,6 +438,8 @@ const styles = StyleSheet.create({
   title: { fontSize: 24, fontWeight: '700', color: '#1a1a2e' },
   addBtn: { backgroundColor: '#6C63FF', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20 },
   addBtnText: { color: '#fff', fontWeight: '600', fontSize: 14 },
+  codeBtn: { borderWidth: 1.5, borderColor: '#6C63FF', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20 },
+  codeBtnText: { color: '#6C63FF', fontWeight: '600', fontSize: 14 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   list: { paddingVertical: 8 },
 

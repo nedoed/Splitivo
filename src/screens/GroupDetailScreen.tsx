@@ -3,12 +3,17 @@ import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
   ActivityIndicator, RefreshControl, Alert, Modal, TextInput,
   KeyboardAvoidingView, Platform, TouchableWithoutFeedback, Keyboard,
+  Share,
 } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { supabase } from '../lib/supabase';
 import { Expense, Group, GroupMember, CATEGORIES } from '../types';
 import EmptyState from '../components/EmptyState';
+import { addFriend } from '../lib/friends';
+import { haptics } from '../lib/haptics';
+import { generateInviteCode } from '../lib/invites';
 
 export default function GroupDetailScreen({ route, navigation }: any) {
   const { group }: { group: Group } = route.params;
@@ -20,6 +25,10 @@ export default function GroupDetailScreen({ route, navigation }: any) {
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviting, setInviting] = useState(false);
   const [currentUserId, setCurrentUserId] = useState('');
+  const [friendsForInvite, setFriendsForInvite] = useState<any[]>([]);
+  const [addingFriendId, setAddingFriendId] = useState<string | null>(null);
+  const [generatingLink, setGeneratingLink] = useState(false);
+  const [lastInviteCode, setLastInviteCode] = useState<string | null>(null);
 
   const fetchData = async () => {
     const { data: user } = await supabase.auth.getUser();
@@ -77,6 +86,90 @@ export default function GroupDetailScreen({ route, navigation }: any) {
 
   useFocusEffect(useCallback(() => { fetchData(); }, []));
 
+  // Lade Freunde wenn das Invite-Modal geöffnet wird
+  const openInviteModal = async () => {
+    setInviteModal(true);
+    const { data: userData } = await supabase.auth.getUser();
+    if (!userData.user) return;
+
+    const { data: friendships } = await supabase
+      .from('friendships')
+      .select('friend_id, friend:profiles!friend_id(id, username, email)')
+      .eq('user_id', userData.user.id);
+
+    const memberUserIds = members.map((m) => m.user_id);
+    const available = (friendships ?? [])
+      .map((f) => f.friend)
+      .filter((f): f is any => !!f && !memberUserIds.includes(f.id));
+
+    setFriendsForInvite(available);
+  };
+
+  // Freund direkt zur Gruppe hinzufügen
+  const addFriendToGroup = async (friend: any) => {
+    setAddingFriendId(friend.id);
+    const { error } = await supabase
+      .from('group_members')
+      .insert({ group_id: group.id, user_id: friend.id });
+
+    if (error) {
+      haptics.error();
+      Alert.alert('Fehler', error.message);
+    } else {
+      haptics.success();
+      setInviteModal(false);
+      setFriendsForInvite([]);
+      fetchData();
+    }
+    setAddingFriendId(null);
+  };
+
+  // Einladungslink generieren und teilen
+  const shareInviteLink = async () => {
+    const { data: userData } = await supabase.auth.getUser();
+    if (!userData.user) return;
+
+    setGeneratingLink(true);
+    const code = generateInviteCode();
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+
+    const { error } = await supabase
+      .from('group_invites')
+      .insert({ group_id: group.id, code, created_by: userData.user.id, expires_at: expiresAt });
+
+    setGeneratingLink(false);
+
+    if (error) {
+      haptics.error();
+      Alert.alert('Fehler', error.message);
+      return;
+    }
+
+    setLastInviteCode(code);
+    haptics.success();
+
+    await Share.share({
+      message:
+        `Tritt meiner SplitEasy Gruppe „${group.name}" bei!\n\n` +
+        `Einladungscode: ${code}\n\n` +
+        `Öffne SplitEasy → Gruppen → „Per Code beitreten" und gib den Code ein.\n\n` +
+        `Oder tippe diesen Link: spliteasy://join/${code}\n\n` +
+        `(Gültig 7 Tage)`,
+      title: 'SplitEasy Einladung',
+    });
+  };
+
+  // Code in Zwischenablage kopieren
+  const copyInviteCode = async () => {
+    if (!lastInviteCode) {
+      await shareInviteLink();
+      return;
+    }
+    await Clipboard.setStringAsync(lastInviteCode);
+    haptics.success();
+    Alert.alert('Kopiert! 📋', `Code ${lastInviteCode} wurde in die Zwischenablage kopiert.`);
+  };
+
   const inviteMember = async () => {
     const email = inviteEmail.trim().toLowerCase();
     if (!email) return;
@@ -112,11 +205,16 @@ export default function GroupDetailScreen({ route, navigation }: any) {
       .insert({ group_id: group.id, user_id: profile.id });
 
     if (insertError) {
+      haptics.error();
       Alert.alert('Fehler', insertError.message);
     } else {
+      // Automatisch als Freund hinzufügen
+      await addFriend(profile.id);
+      haptics.success();
       Alert.alert('✓ Hinzugefügt', `${profile.username} wurde zur Gruppe hinzugefügt!`);
       setInviteEmail('');
       setInviteModal(false);
+      setFriendsForInvite([]);
       fetchData();
     }
     setInviting(false);
@@ -188,7 +286,7 @@ export default function GroupDetailScreen({ route, navigation }: any) {
           >
             <Text style={styles.actionBtnText}>+ Ausgabe</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.actionBtn, styles.actionBtnOutline]} onPress={() => setInviteModal(true)}>
+          <TouchableOpacity style={[styles.actionBtn, styles.actionBtnOutline]} onPress={openInviteModal}>
             <Text style={[styles.actionBtnText, styles.actionBtnTextOutline]}>+ Mitglied</Text>
           </TouchableOpacity>
         </View>
@@ -225,7 +323,73 @@ export default function GroupDetailScreen({ route, navigation }: any) {
             <View style={styles.modalOverlay}>
               <View style={styles.modalCard}>
                 <Text style={styles.modalTitle}>Mitglied einladen</Text>
-                <Text style={styles.modalHint}>E-Mail des registrierten Benutzers</Text>
+
+                {/* Freunde-Schnellauswahl */}
+                {friendsForInvite.length > 0 && (
+                  <>
+                    <Text style={styles.modalSectionLabel}>Freunde</Text>
+                    {friendsForInvite.map((friend) => (
+                      <TouchableOpacity
+                        key={friend.id}
+                        style={styles.friendRow}
+                        onPress={() => addFriendToGroup(friend)}
+                        disabled={addingFriendId === friend.id}
+                        activeOpacity={0.7}
+                      >
+                        <View style={styles.friendAvatar}>
+                          <Text style={styles.friendAvatarText}>
+                            {friend.username.charAt(0).toUpperCase()}
+                          </Text>
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.friendName}>{friend.username}</Text>
+                          <Text style={styles.friendEmail}>{friend.email}</Text>
+                        </View>
+                        {addingFriendId === friend.id
+                          ? <ActivityIndicator color="#6C63FF" size="small" />
+                          : <Text style={styles.friendAdd}>+ Hinzufügen</Text>
+                        }
+                      </TouchableOpacity>
+                    ))}
+                    <View style={styles.modalDivider}>
+                      <View style={styles.dividerLine} />
+                      <Text style={styles.dividerText}>oder per E-Mail</Text>
+                      <View style={styles.dividerLine} />
+                    </View>
+                  </>
+                )}
+
+                {/* Einladungslink */}
+                <Text style={styles.modalSectionLabel}>Einladungslink</Text>
+                <TouchableOpacity
+                  style={[styles.linkBtn, generatingLink && { opacity: 0.7 }]}
+                  onPress={shareInviteLink}
+                  disabled={generatingLink}
+                  activeOpacity={0.8}
+                >
+                  {generatingLink
+                    ? <ActivityIndicator color="#6C63FF" size="small" />
+                    : <Text style={styles.linkBtnText}>🔗  Link generieren & teilen</Text>
+                  }
+                </TouchableOpacity>
+
+                {lastInviteCode && (
+                  <TouchableOpacity style={styles.copyCodeBtn} onPress={copyInviteCode} activeOpacity={0.8}>
+                    <Text style={styles.copyCodeText}>📋  Code kopieren: </Text>
+                    <Text style={styles.copyCodeValue}>{lastInviteCode}</Text>
+                  </TouchableOpacity>
+                )}
+
+                <View style={styles.modalDivider}>
+                  <View style={styles.dividerLine} />
+                  <Text style={styles.dividerText}>oder per E-Mail</Text>
+                  <View style={styles.dividerLine} />
+                </View>
+
+                {/* E-Mail Fallback */}
+                {friendsForInvite.length === 0 && (
+                  <Text style={styles.modalHint}>E-Mail des registrierten Benutzers</Text>
+                )}
                 <TextInput
                   style={styles.input}
                   placeholder="freund@email.de"
@@ -236,12 +400,12 @@ export default function GroupDetailScreen({ route, navigation }: any) {
                   placeholderTextColor="#999"
                   returnKeyType="done"
                   onSubmitEditing={inviteMember}
-                  autoFocus
+                  autoFocus={friendsForInvite.length === 0}
                 />
                 <TouchableOpacity style={[styles.button, inviting && styles.buttonDisabled]} onPress={inviteMember} disabled={inviting}>
-                  {inviting ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Einladen</Text>}
+                  {inviting ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Per E-Mail einladen</Text>}
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.cancelBtn} onPress={() => { Keyboard.dismiss(); setInviteModal(false); }}>
+                <TouchableOpacity style={styles.cancelBtn} onPress={() => { Keyboard.dismiss(); setInviteModal(false); setFriendsForInvite([]); }}>
                   <Text style={styles.cancelText}>Abbrechen</Text>
                 </TouchableOpacity>
               </View>
@@ -288,8 +452,46 @@ const styles = StyleSheet.create({
   expenseChevron: { fontSize: 16, color: '#ccc', marginTop: 2 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
   modalCard: { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24 },
-  modalTitle: { fontSize: 20, fontWeight: '700', color: '#1a1a2e', marginBottom: 4 },
+  modalTitle: { fontSize: 20, fontWeight: '700', color: '#1a1a2e', marginBottom: 12 },
   modalHint: { fontSize: 13, color: '#888', marginBottom: 16 },
+  modalSectionLabel: { fontSize: 12, fontWeight: '700', color: '#888', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 },
+
+  // Friends quick-add
+  friendRow: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingVertical: 10, paddingHorizontal: 4,
+    borderBottomWidth: 1, borderBottomColor: '#F5F5F5',
+  },
+  friendAvatar: {
+    width: 38, height: 38, borderRadius: 19,
+    backgroundColor: '#EEF0FF',
+    justifyContent: 'center', alignItems: 'center', marginRight: 12,
+  },
+  friendAvatarText: { fontSize: 16, fontWeight: '700', color: '#6C63FF' },
+  friendName: { fontSize: 14, fontWeight: '600', color: '#1a1a2e' },
+  friendEmail: { fontSize: 12, color: '#888', marginTop: 1 },
+  friendAdd: { fontSize: 13, color: '#6C63FF', fontWeight: '600' },
+
+  modalDivider: {
+    flexDirection: 'row', alignItems: 'center',
+    marginVertical: 16, gap: 8,
+  },
+  dividerLine: { flex: 1, height: 1, backgroundColor: '#E8E8F0' },
+  dividerText: { fontSize: 12, color: '#999', fontWeight: '500' },
+
+  // Link buttons
+  linkBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1.5, borderColor: '#6C63FF', borderRadius: 12,
+    paddingVertical: 13, marginBottom: 8,
+  },
+  linkBtnText: { color: '#6C63FF', fontWeight: '700', fontSize: 14 },
+  copyCodeBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#F0EEFF', borderRadius: 10, paddingVertical: 10, marginBottom: 8,
+  },
+  copyCodeText: { color: '#6C63FF', fontSize: 13 },
+  copyCodeValue: { color: '#6C63FF', fontWeight: '800', fontSize: 14, letterSpacing: 1 },
   input: { borderWidth: 1.5, borderColor: '#E8E8F0', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14, fontSize: 15, color: '#1a1a2e', backgroundColor: '#FAFAFA', marginBottom: 12 },
   button: { backgroundColor: '#6C63FF', borderRadius: 12, paddingVertical: 16, alignItems: 'center' },
   buttonDisabled: { opacity: 0.7 },

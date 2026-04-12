@@ -7,12 +7,16 @@ import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SplashScreen from 'expo-splash-screen';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as Linking from 'expo-linking';
 
 import { useAuth } from './src/hooks/useAuth';
 import AuthScreen from './src/screens/AuthScreen';
 import AppNavigator from './src/navigation/AppNavigator';
 import OnboardingScreen from './src/screens/OnboardingScreen';
 import { registerForPushNotifications, savePushToken } from './src/lib/notifications';
+import { joinGroupWithCode } from './src/lib/invites';
+import { haptics } from './src/lib/haptics';
+import { checkAndScheduleReminders } from './src/lib/reminders';
 
 // Nativen Splash-Screen eingefroren halten bis wir bereit sind
 SplashScreen.preventAutoHideAsync();
@@ -23,6 +27,7 @@ function RootNavigator() {
   const { session, loading } = useAuth();
   const [onboardingChecked, setOnboardingChecked] = useState(false);
   const [onboardingDone, setOnboardingDone] = useState(false);
+  const [pendingCode, setPendingCode] = useState<string | null>(null);
 
   useEffect(() => {
     AsyncStorage.getItem('onboarding_completed').then((value) => {
@@ -30,6 +35,50 @@ function RootNavigator() {
       setOnboardingChecked(true);
     });
   }, []);
+
+  // ── Deep Link Handler ────────────────────────────────────────────────────────
+  useEffect(() => {
+    const parseCode = (url: string) => {
+      // spliteasy://join/ABCD1234
+      const parts = url.replace(/.*:\/\//, '').split('/');
+      if (parts[0] === 'join' && parts[1]) return parts[1];
+      return null;
+    };
+
+    Linking.getInitialURL().then((url) => {
+      if (url) { const code = parseCode(url); if (code) setPendingCode(code); }
+    });
+
+    const sub = Linking.addEventListener('url', ({ url }) => {
+      const code = parseCode(url);
+      if (code) setPendingCode(code);
+    });
+
+    return () => sub.remove();
+  }, []);
+
+  // Erinnerungen prüfen sobald Session bereit
+  useEffect(() => {
+    if (!session) return;
+    checkAndScheduleReminders();
+  }, [session]);
+
+  // Einladungscode verarbeiten sobald Session bereit
+  useEffect(() => {
+    if (!session || !pendingCode) return;
+    const code = pendingCode;
+    setPendingCode(null);
+
+    joinGroupWithCode(code).then((result) => {
+      if (result.success) {
+        haptics.success();
+        Alert.alert('Willkommen! 🎉', `Du bist der Gruppe „${result.groupName}" beigetreten!\n\nÖffne die Gruppen-Ansicht um sie zu sehen.`);
+      } else {
+        haptics.error();
+        Alert.alert('Hinweis', result.error ?? 'Beitritt fehlgeschlagen');
+      }
+    });
+  }, [session, pendingCode]);
 
   useEffect(() => {
     const isExpoGo = Constants.appOwnership === 'expo';

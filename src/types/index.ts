@@ -4,6 +4,13 @@ export interface Profile {
   email: string;
   avatar_url: string | null;
   created_at: string;
+  reminder_enabled?: boolean;
+  reminder_days?: number;
+  reminder_time?: string;
+  reminder_daily_summary?: boolean;
+  paypal_me?: string | null;
+  iban?: string | null;
+  bank_name?: string | null;
 }
 
 export interface Group {
