@@ -27,6 +27,7 @@ function decode(base64: string): Uint8Array {
 }
 import { supabase } from '../lib/supabase';
 import { notifyGroupMembers } from '../lib/notifications';
+import { haptics } from '../lib/haptics';
 import { CATEGORIES, CATEGORY_SCAN_MAP, GroupMember } from '../types';
 
 export default function AddExpenseScreen({ route, navigation }: any) {
@@ -82,6 +83,7 @@ export default function AddExpenseScreen({ route, navigation }: any) {
     const asset = result.assets[0];
     const imageUri = asset.uri;
     setReceiptImage(imageUri);
+    haptics.medium();
     setScanLoading(true);
 
     try {
@@ -158,6 +160,7 @@ Erkenne alle einzelnen Positionen auf dem Kassenbon.`,
 
         // Hat der Scan Positionen erkannt? → ReceiptSplitScreen öffnen
         if (Array.isArray(parsed.items) && parsed.items.length > 0) {
+          haptics.success();
           setScanLoading(false);
           navigation.navigate('ReceiptSplit', {
             group,
@@ -175,6 +178,7 @@ Erkenne alle einzelnen Positionen auf dem Kassenbon.`,
         }
 
         // Fallback: kein Positions-Array → Felder manuell befüllen
+        haptics.success();
         if (parsed.total ?? parsed.amount) setAmount(String(parsed.total ?? parsed.amount));
         if (parsed.description) setDescription(parsed.description);
         setCategory(mappedCategory);
@@ -184,6 +188,7 @@ Erkenne alle einzelnen Positionen auf dem Kassenbon.`,
         Alert.alert('Hinweis', 'Betrag konnte nicht erkannt werden. Bitte manuell eingeben.');
       }
     } catch (e: any) {
+      haptics.error();
       console.log('Scan Fehler:', e?.message ?? e);
       Alert.alert('Fehler', e?.message ?? 'Kassenbon konnte nicht gelesen werden.');
     } finally {
@@ -274,8 +279,10 @@ Erkenne alle einzelnen Positionen auf dem Kassenbon.`,
         `${payerName} hat „${description.trim()}" (${numAmount.toFixed(2)} €) erfasst.`
       );
 
+      haptics.success();
       navigation.goBack();
     } catch (e) {
+      haptics.error();
       Alert.alert('Fehler', 'Unbekannter Fehler');
     } finally {
       setLoading(false);
@@ -334,7 +341,7 @@ Erkenne alle einzelnen Positionen auf dem Kassenbon.`,
               <TouchableOpacity
                 key={c}
                 style={[styles.currencyBtn, currency === c && styles.currencyBtnActive]}
-                onPress={() => setCurrency(c)}
+                onPress={() => { haptics.selection(); setCurrency(c); }}
               >
                 <Text style={[styles.currencyBtnText, currency === c && styles.currencyBtnTextActive]}>
                   {c === 'CHF' ? '🇨🇭' : c === 'EUR' ? '🇪🇺' : '🇺🇸'}
@@ -381,7 +388,7 @@ Erkenne alle einzelnen Positionen auf dem Kassenbon.`,
             <TouchableOpacity
               key={cat.value}
               style={[styles.categoryChip, category === cat.value && styles.categoryChipActive]}
-              onPress={() => setCategory(cat.value)}
+              onPress={() => { haptics.selection(); setCategory(cat.value); }}
             >
               <Text style={styles.categoryIcon}>{cat.icon}</Text>
               <Text style={[styles.categoryLabel, category === cat.value && styles.categoryLabelActive]}>

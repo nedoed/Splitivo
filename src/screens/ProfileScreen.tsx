@@ -8,6 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { useFocusEffect } from '@react-navigation/native';
 import { supabase } from '../lib/supabase';
+import { haptics } from '../lib/haptics';
 import { Profile } from '../types';
 
 export default function ProfileScreen() {
@@ -126,8 +127,10 @@ export default function ProfileScreen() {
 
     setSavingUsername(false);
     if (error) {
+      haptics.error();
       Alert.alert('Fehler', error.message);
     } else {
+      haptics.success();
       setEditUsernameVisible(false);
       fetchProfile();
     }

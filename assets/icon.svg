@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- Purple rounded background (iOS icon shape) -->
+  <rect width="1024" height="1024" rx="210" fill="#6C63FF"/>
+
+  <!-- Glow ring behind symbol -->
+  <circle cx="512" cy="490" r="330" fill="rgba(255,255,255,0.08)"/>
+
+  <!-- Split/fork symbol:
+       One stem from bottom splits into two branches going upper-left and upper-right.
+       Represents "one expense split among many people". -->
+
+  <!-- Stem (bottom to fork point) -->
+  <line x1="512" y1="790" x2="512" y2="490"
+        stroke="white" stroke-width="92" stroke-linecap="round"/>
+
+  <!-- Left branch (fork point to upper-left tip) -->
+  <line x1="512" y1="490" x2="268" y2="246"
+        stroke="white" stroke-width="92" stroke-linecap="round"/>
+
+  <!-- Right branch (fork point to upper-right tip) -->
+  <line x1="512" y1="490" x2="756" y2="246"
+        stroke="white" stroke-width="92" stroke-linecap="round"/>
+
+  <!-- Filled circle at fork junction -->
+  <circle cx="512" cy="490" r="56" fill="white"/>
+
+  <!-- Coin circles at branch tips (= people receiving) -->
+  <circle cx="268" cy="246" r="68" fill="white"/>
+  <circle cx="756" cy="246" r="68" fill="white"/>
+
+  <!-- Coin circle at bottom stem (= the shared expense) -->
+  <circle cx="512" cy="790" r="68" fill="white"/>
+
+  <!-- Small euro signs inside tip circles -->
+  <text x="268" y="262" font-family="Helvetica, Arial, sans-serif"
+        font-size="72" font-weight="900" fill="#6C63FF"
+        text-anchor="middle" dominant-baseline="middle">€</text>
+
+  <text x="756" y="262" font-family="Helvetica, Arial, sans-serif"
+        font-size="72" font-weight="900" fill="#6C63FF"
+        text-anchor="middle" dominant-baseline="middle">€</text>
+
+  <text x="512" y="806" font-family="Helvetica, Arial, sans-serif"
+        font-size="72" font-weight="900" fill="#6C63FF"
+        text-anchor="middle" dominant-baseline="middle">$</text>
+</svg>

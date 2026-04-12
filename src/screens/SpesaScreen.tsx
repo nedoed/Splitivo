@@ -10,6 +10,7 @@ import * as MediaLibrary from 'expo-media-library';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as XLSX from 'xlsx';
 import { supabase } from '../lib/supabase';
+import EmptyState from '../components/EmptyState';
 
 interface SpesaExpense {
   id: string;
@@ -294,13 +295,11 @@ export default function SpesaScreen() {
           <ActivityIndicator size="large" color="#6C63FF" />
         </View>
       ) : expenses.length === 0 ? (
-        <View style={styles.emptyState}>
-          <Text style={styles.emptyIcon}>💼</Text>
-          <Text style={styles.emptyTitle}>Keine Spesen</Text>
-          <Text style={styles.emptyText}>
-            Erfasse Ausgaben mit der Kategorie „Spesen" um sie hier zu sehen.
-          </Text>
-        </View>
+        <EmptyState
+          emoji="💼"
+          title="Keine Spesen"
+          subtitle={"Erfasse Ausgaben mit der\nKategorie Spesen um sie hier\nzu sehen und zu exportieren"}
+        />
       ) : (
         <FlatList
           data={grouped}
@@ -398,10 +397,6 @@ const styles = StyleSheet.create({
   badgeOrange: { backgroundColor: '#FEF3C7' },
   badgeText: { fontSize: 10, fontWeight: '600', color: '#555' },
 
-  emptyState: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 },
-  emptyIcon: { fontSize: 56, marginBottom: 16 },
-  emptyTitle: { fontSize: 18, fontWeight: '700', color: '#1a1a2e', marginBottom: 8 },
-  emptyText: { fontSize: 14, color: '#888', textAlign: 'center', lineHeight: 20 },
 
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
   modalCard: { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24 },

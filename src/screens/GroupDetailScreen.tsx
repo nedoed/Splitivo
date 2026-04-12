@@ -8,6 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { supabase } from '../lib/supabase';
 import { Expense, Group, GroupMember, CATEGORIES } from '../types';
+import EmptyState from '../components/EmptyState';
 
 export default function GroupDetailScreen({ route, navigation }: any) {
   const { group }: { group: Group } = route.params;
@@ -198,11 +199,13 @@ export default function GroupDetailScreen({ route, navigation }: any) {
           <ActivityIndicator size="large" color="#6C63FF" />
         </View>
       ) : expenses.length === 0 ? (
-        <View style={styles.emptyState}>
-          <Text style={styles.emptyIcon}>🧾</Text>
-          <Text style={styles.emptyTitle}>Keine Ausgaben</Text>
-          <Text style={styles.emptyText}>Füge die erste Ausgabe dieser Gruppe hinzu.</Text>
-        </View>
+        <EmptyState
+          emoji="💸"
+          title="Erste Ausgabe erfassen"
+          subtitle={"Tippe auf + um die erste\nAusgabe dieser Gruppe hinzuzufügen"}
+          buttonText="Ausgabe hinzufügen"
+          onButtonPress={() => navigation.navigate('AddExpense', { group, members })}
+        />
       ) : (
         <FlatList
           data={expenses}
@@ -283,10 +286,6 @@ const styles = StyleSheet.create({
   expensePayer: { fontSize: 12, color: '#888', marginTop: 2 },
   expenseAmount: { fontSize: 16, fontWeight: '700', color: '#6C63FF' },
   expenseChevron: { fontSize: 16, color: '#ccc', marginTop: 2 },
-  emptyState: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 },
-  emptyIcon: { fontSize: 56, marginBottom: 16 },
-  emptyTitle: { fontSize: 18, fontWeight: '700', color: '#1a1a2e', marginBottom: 8 },
-  emptyText: { fontSize: 14, color: '#888', textAlign: 'center' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
   modalCard: { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24 },
   modalTitle: { fontSize: 20, fontWeight: '700', color: '#1a1a2e', marginBottom: 4 },

@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { supabase } from '../lib/supabase';
 import { Expense, CATEGORIES } from '../types';
+import EmptyState from '../components/EmptyState';
 
 export default function ActivityScreen() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -96,11 +97,11 @@ export default function ActivityScreen() {
           <ActivityIndicator size="large" color="#6C63FF" />
         </View>
       ) : expenses.length === 0 ? (
-        <View style={styles.emptyState}>
-          <Text style={styles.emptyIcon}>📋</Text>
-          <Text style={styles.emptyTitle}>Keine Aktivität</Text>
-          <Text style={styles.emptyText}>Hier erscheinen alle Ausgaben deiner Gruppen.</Text>
-        </View>
+        <EmptyState
+          emoji="🧾"
+          title="Noch keine Ausgaben"
+          subtitle={"Erfasse deine erste Ausgabe\nin einer Gruppe"}
+        />
       ) : (
         <FlatList
           data={grouped}
@@ -135,8 +136,4 @@ const styles = StyleSheet.create({
   expenseName: { fontSize: 15, fontWeight: '600', color: '#1a1a2e' },
   expenseMeta: { fontSize: 12, color: '#888', marginTop: 2 },
   expenseAmount: { fontSize: 16, fontWeight: '700', color: '#6C63FF' },
-  emptyState: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 },
-  emptyIcon: { fontSize: 56, marginBottom: 16 },
-  emptyTitle: { fontSize: 18, fontWeight: '700', color: '#1a1a2e', marginBottom: 8 },
-  emptyText: { fontSize: 14, color: '#888', textAlign: 'center' },
 });

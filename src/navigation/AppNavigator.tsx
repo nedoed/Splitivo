@@ -2,6 +2,7 @@ import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 import { Text } from 'react-native';
+import { haptics } from '../lib/haptics';
 
 import GroupsScreen from '../screens/GroupsScreen';
 import GroupDetailScreen from '../screens/GroupDetailScreen';
@@ -49,6 +50,9 @@ const TAB_ICONS: { [key: string]: { active: string; inactive: string } } = {
 export default function AppNavigator() {
   return (
     <Tab.Navigator
+      screenListeners={{
+        tabPress: () => haptics.light(),
+      }}
       screenOptions={({ route }) => ({
         tabBarIcon: ({ focused }) => {
           const icons = TAB_ICONS[route.name] ?? { active: '•', inactive: '•' };

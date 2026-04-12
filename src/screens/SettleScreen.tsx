@@ -7,6 +7,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { supabase } from '../lib/supabase';
 import { notifyUser } from '../lib/notifications';
+import { haptics } from '../lib/haptics';
+import EmptyState from '../components/EmptyState';
 import { Debt } from '../types';
 
 export default function SettleScreen() {
@@ -111,6 +113,7 @@ export default function SettleScreen() {
   useFocusEffect(useCallback(() => { fetchDebts(); }, []));
 
   const settleDebt = async (debt: Debt) => {
+    haptics.warning();
     Alert.alert(
       'Schuld begleichen',
       `Möchtest du ${debt.amount.toFixed(2)} ${debt.currency} an ${debt.to_profile?.username} als bezahlt markieren?`,
@@ -137,6 +140,7 @@ export default function SettleScreen() {
                 .update({ is_settled: true })
                 .in('id', toSettle);
 
+              haptics.success();
               const debtorName = debt.from_profile?.username ?? 'Jemand';
               notifyUser(
                 debt.to_user_id,
@@ -189,11 +193,11 @@ export default function SettleScreen() {
           <ActivityIndicator size="large" color="#6C63FF" />
         </View>
       ) : debts.length === 0 ? (
-        <View style={styles.emptyState}>
-          <Text style={styles.emptyIcon}>🎉</Text>
-          <Text style={styles.emptyTitle}>Alles beglichen!</Text>
-          <Text style={styles.emptyText}>Du hast keine offenen Schulden. Super!</Text>
-        </View>
+        <EmptyState
+          emoji="🎉"
+          title="Alles beglichen!"
+          subtitle={"Du hast keine offenen Schulden\nund niemand schuldet dir etwas"}
+        />
       ) : (
         <FlatList
           data={debts}
@@ -258,8 +262,4 @@ const styles = StyleSheet.create({
   debtAmount: { fontSize: 18, fontWeight: '700' },
   settleBtn: { backgroundColor: '#6C63FF', borderRadius: 10, paddingVertical: 10, alignItems: 'center' },
   settleBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
-  emptyState: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 },
-  emptyIcon: { fontSize: 56, marginBottom: 16 },
-  emptyTitle: { fontSize: 18, fontWeight: '700', color: '#1a1a2e', marginBottom: 8 },
-  emptyText: { fontSize: 14, color: '#888', textAlign: 'center' },
 });

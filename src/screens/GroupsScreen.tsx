@@ -20,7 +20,9 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { supabase } from '../lib/supabase';
+import { haptics } from '../lib/haptics';
 import { Group } from '../types';
+import EmptyState from '../components/EmptyState';
 
 // ─── Swipeable Card ────────────────────────────────────────────────────────────
 
@@ -60,6 +62,7 @@ function SwipeableGroupCard({
       },
       onPanResponderRelease: (_, g) => {
         if (g.dx < THRESHOLD) {
+          haptics.light();
           Animated.spring(translateX, {
             toValue: -ACTION_WIDTH,
             useNativeDriver: true,
@@ -79,6 +82,7 @@ function SwipeableGroupCard({
   ).current;
 
   const handleAction = () => {
+    haptics.warning();
     Alert.alert(
       isCreator ? 'Gruppe löschen' : 'Gruppe verlassen',
       isCreator
@@ -117,7 +121,7 @@ function SwipeableGroupCard({
       >
         <TouchableOpacity
           style={styles.groupCardInner}
-          onPress={onPress}
+          onPress={() => { haptics.light(); onPress(); }}
           activeOpacity={0.8}
         >
           <View style={styles.groupIcon}>
@@ -221,8 +225,10 @@ export default function GroupsScreen({ navigation }: any) {
       setGroupName('');
       setGroupDesc('');
       setModalVisible(false);
+      haptics.success();
       fetchGroups();
     } catch {
+      haptics.error();
       Alert.alert('Fehler', 'Unbekannter Fehler');
     } finally {
       setCreating(false);
@@ -231,7 +237,8 @@ export default function GroupsScreen({ navigation }: any) {
 
   const deleteGroup = async (groupId: string) => {
     const { error } = await supabase.from('groups').delete().eq('id', groupId);
-    if (error) { Alert.alert('Fehler', error.message); return; }
+    if (error) { haptics.error(); Alert.alert('Fehler', error.message); return; }
+    haptics.heavy();
     setGroups((prev) => prev.filter((g) => g.id !== groupId));
   };
 
@@ -241,7 +248,8 @@ export default function GroupsScreen({ navigation }: any) {
       .delete()
       .eq('group_id', groupId)
       .eq('user_id', currentUserId);
-    if (error) { Alert.alert('Fehler', error.message); return; }
+    if (error) { haptics.error(); Alert.alert('Fehler', error.message); return; }
+    haptics.medium();
     setGroups((prev) => prev.filter((g) => g.id !== groupId));
   };
 
@@ -270,14 +278,13 @@ export default function GroupsScreen({ navigation }: any) {
           <ActivityIndicator size="large" color="#6C63FF" />
         </View>
       ) : groups.length === 0 ? (
-        <View style={styles.emptyState}>
-          <Text style={styles.emptyIcon}>👥</Text>
-          <Text style={styles.emptyTitle}>Noch keine Gruppen</Text>
-          <Text style={styles.emptyText}>Erstelle deine erste Gruppe, um Ausgaben zu teilen.</Text>
-          <TouchableOpacity style={styles.emptyBtn} onPress={() => setModalVisible(true)}>
-            <Text style={styles.emptyBtnText}>Gruppe erstellen</Text>
-          </TouchableOpacity>
-        </View>
+        <EmptyState
+          emoji="👥"
+          title="Noch keine Gruppen"
+          subtitle={"Erstelle deine erste Gruppe für\nWG, Reise oder Freunde"}
+          buttonText="Erste Gruppe erstellen"
+          onButtonPress={() => setModalVisible(true)}
+        />
       ) : (
         <FlatList
           data={groups}
@@ -392,15 +399,6 @@ const styles = StyleSheet.create({
   groupDesc: { fontSize: 13, color: '#888', marginTop: 2 },
   arrow: { fontSize: 22, color: '#ccc' },
 
-  emptyState: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 },
-  emptyIcon: { fontSize: 64, marginBottom: 16 },
-  emptyTitle: { fontSize: 20, fontWeight: '700', color: '#1a1a2e', marginBottom: 8 },
-  emptyText: { fontSize: 15, color: '#888', textAlign: 'center', lineHeight: 22 },
-  emptyBtn: {
-    marginTop: 24, backgroundColor: '#6C63FF',
-    paddingHorizontal: 24, paddingVertical: 14, borderRadius: 12,
-  },
-  emptyBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
 
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
   modalCard: { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24 },
