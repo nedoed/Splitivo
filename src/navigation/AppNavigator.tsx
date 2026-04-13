@@ -1,7 +1,8 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
-import { Text } from 'react-native';
+import { Platform, Text } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { haptics } from '../lib/haptics';
 
 import GroupsScreen from '../screens/GroupsScreen';
@@ -66,6 +67,14 @@ const TAB_ICONS: { [key: string]: { active: string; inactive: string } } = {
 };
 
 export default function AppNavigator() {
+  const insets = useSafeAreaInsets();
+  // Auf Android mit edgeToEdgeEnabled muss die Tab-Bar den System-Navigationsbereich
+  // (Zurück/Home/Übersicht) nach unten ausweichen. insets.bottom gibt den genauen Wert.
+  const bottomInset = Platform.OS === 'android'
+    ? Math.max(insets.bottom, 16)
+    : insets.bottom;
+  const TAB_HEIGHT = 62;
+
   return (
     <Tab.Navigator
       screenListeners={{
@@ -86,8 +95,8 @@ export default function AppNavigator() {
           shadowOpacity: 0.06,
           shadowRadius: 12,
           elevation: 10,
-          paddingBottom: 6,
-          height: 62,
+          paddingBottom: bottomInset,
+          height: TAB_HEIGHT + bottomInset,
         },
         tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
         headerShown: false,

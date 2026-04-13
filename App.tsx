@@ -142,13 +142,12 @@ export default function App() {
   }, [appReady]);
 
   return (
-    <View style={{ flex: 1 }}>
-      <SafeAreaProvider>
+    <SafeAreaProvider>
+      <View style={{ flex: 1 }}>
         <NavigationContainer>
           <StatusBar style={splashDone ? 'dark' : 'light'} />
           <RootNavigator />
         </NavigationContainer>
-      </SafeAreaProvider>
 
       {/* Custom Animated Splash – liegt über dem App-Inhalt und faded aus */}
       {!splashDone && (
@@ -220,6 +219,7 @@ export default function App() {
           </LinearGradient>
         </Animated.View>
       )}
-    </View>
+      </View>
+    </SafeAreaProvider>
   );
 }
