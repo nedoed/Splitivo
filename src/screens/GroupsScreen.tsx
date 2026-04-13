@@ -289,7 +289,7 @@ export default function GroupsScreen({ navigation }: any) {
   );
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <Text style={styles.title}>Meine Gruppen</Text>
         <View style={{ flexDirection: 'row', gap: 8 }}>
@@ -433,10 +433,10 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8F8FF' },
   header: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingHorizontal: 20, paddingVertical: 12,
+    paddingLeft: 20, paddingRight: 20, paddingVertical: 12,
   },
   title: { fontSize: 24, fontWeight: '700', color: '#1a1a2e' },
-  addBtn: { backgroundColor: '#6C63FF', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20 },
+  addBtn: { backgroundColor: '#6C63FF', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, marginRight: 4 },
   addBtnText: { color: '#fff', fontWeight: '600', fontSize: 14 },
   codeBtn: { borderWidth: 1.5, borderColor: '#6C63FF', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20 },
   codeBtnText: { color: '#6C63FF', fontWeight: '600', fontSize: 14 },
