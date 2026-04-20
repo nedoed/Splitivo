@@ -31,7 +31,7 @@ export async function registerForPushNotifications(): Promise<string | null> {
   try {
     if (Platform.OS === 'android') {
       await Notifications.setNotificationChannelAsync('default', {
-        name: 'SplitEasy',
+        name: 'Splitivo',
         importance: Notifications.AndroidImportance.MAX,
         vibrationPattern: [0, 250, 250, 250],
         lightColor: '#6C63FF',

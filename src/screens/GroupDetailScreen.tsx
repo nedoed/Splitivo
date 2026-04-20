@@ -150,12 +150,12 @@ export default function GroupDetailScreen({ route, navigation }: any) {
 
     await Share.share({
       message:
-        `Tritt meiner SplitEasy Gruppe „${group.name}" bei!\n\n` +
+        `Tritt meiner Splitivo Gruppe „${group.name}" bei!\n\n` +
         `Einladungscode: ${code}\n\n` +
-        `Öffne SplitEasy → Gruppen → „Per Code beitreten" und gib den Code ein.\n\n` +
-        `Oder tippe diesen Link: spliteasy://join/${code}\n\n` +
+        `Öffne Splitivo → Gruppen → „Per Code beitreten" und gib den Code ein.\n\n` +
+        `Oder tippe diesen Link: splitivo://join/${code}\n\n` +
         `(Gültig 7 Tage)`,
-      title: 'SplitEasy Einladung',
+      title: 'Splitivo Einladung',
     });
   };
 

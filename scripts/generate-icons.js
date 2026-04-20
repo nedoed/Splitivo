@@ -80,7 +80,7 @@ const svgFavicon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" 
 // ─── Generate ─────────────────────────────────────────────────────────────────
 
 async function generate() {
-  console.log('Generating SplitEasy icons...\n');
+  console.log('Generating Splitivo icons...\n');
 
   // icon.png – 1024×1024 (App Store / iOS / Expo default)
   await sharp(Buffer.from(svgFull))

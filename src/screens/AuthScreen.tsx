@@ -81,7 +81,7 @@ export default function AuthScreen() {
       <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         <View style={styles.header}>
           <Text style={styles.logo}>💸</Text>
-          <Text style={styles.title}>SplitEasy</Text>
+          <Text style={styles.title}>Splitivo</Text>
           <Text style={styles.subtitle}>Ausgaben einfach teilen</Text>
         </View>
 

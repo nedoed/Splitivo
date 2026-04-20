@@ -196,7 +196,7 @@ export default function App() {
                 letterSpacing: -1,
               }}
             >
-              SplitEasy
+              Splitivo
             </Text>
 
             <Text

@@ -35,7 +35,7 @@ export const scheduleDailySummary = async (
 
   await Notifications.scheduleNotificationAsync({
     content: {
-      title: '📊 SplitEasy Zusammenfassung',
+      title: '📊 Splitivo Zusammenfassung',
       body: `Du bekommst noch CHF ${totalOwed.toFixed(2)} · Du schuldest noch CHF ${totalOwe.toFixed(2)}`,
       data: { screen: 'Settle' },
     },
