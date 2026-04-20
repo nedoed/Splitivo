@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  Modal, Alert, ActivityIndicator, TextInput,
+  Modal, Alert, ActivityIndicator, TextInput, TouchableWithoutFeedback,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as FileSystem from 'expo-file-system/legacy';
 import { supabase } from '../lib/supabase';
 import { notifyGroupMembers } from '../lib/notifications';
+import { haptics } from '../lib/haptics';
 import { GroupMember } from '../types';
 
 // base64 → Uint8Array
@@ -33,6 +34,7 @@ type ReceiptItem = {
   quantity: number;
   total: number;
   assignedTo: string; // 'all' | userId
+  isManual?: boolean;
 };
 
 type ScanResult = {
@@ -63,6 +65,10 @@ export default function ReceiptSplitScreen({ route, navigation }: any) {
   const [itemPickerVisible, setItemPickerVisible] = useState(false);
   const [itemPickerIndex, setItemPickerIndex] = useState(-1);
   const [paidByPickerVisible, setPaidByPickerVisible] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newItemName, setNewItemName] = useState('');
+  const [newItemPrice, setNewItemPrice] = useState('');
+  const [newItemQuantity, setNewItemQuantity] = useState('1');
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
@@ -99,6 +105,58 @@ export default function ReceiptSplitScreen({ route, navigation }: any) {
     const newTotal = isNaN(parsed) || parsed < 0 ? 0 : parsed;
     setItems((prev) => prev.map((item, i) => (i === index ? { ...item, total: newTotal } : item)));
     setItemPriceTexts((prev) => prev.map((t, i) => (i === index ? newTotal.toFixed(2) : t)));
+  };
+
+  const addManualItem = () => {
+    setNewItemName('');
+    setNewItemPrice('');
+    setNewItemQuantity('1');
+    setShowAddModal(true);
+  };
+
+  const confirmAddItem = () => {
+    if (!newItemName.trim()) {
+      Alert.alert('Fehler', 'Bitte Bezeichnung eingeben');
+      return;
+    }
+    const price = parseFloat(newItemPrice.replace(',', '.'));
+    if (isNaN(price) || price <= 0) {
+      Alert.alert('Fehler', 'Bitte gültigen Preis eingeben');
+      return;
+    }
+    const quantity = parseInt(newItemQuantity) || 1;
+    const total = parseFloat((price * quantity).toFixed(2));
+    const newItem: ReceiptItem = {
+      name: newItemName.trim(),
+      price,
+      quantity,
+      total,
+      assignedTo: 'all',
+      isManual: true,
+    };
+    setItems((prev) => [...prev, newItem]);
+    setItemPriceTexts((prev) => [...prev, total.toFixed(2)]);
+    haptics.success();
+    setShowAddModal(false);
+  };
+
+  const removeItem = (index: number) => {
+    Alert.alert(
+      'Position löschen',
+      'Möchtest du diese Position entfernen?',
+      [
+        { text: 'Abbrechen', style: 'cancel' },
+        {
+          text: 'Löschen',
+          style: 'destructive',
+          onPress: () => {
+            setItems((prev) => prev.filter((_, i) => i !== index));
+            setItemPriceTexts((prev) => prev.filter((_, i) => i !== index));
+            haptics.medium();
+          },
+        },
+      ]
+    );
   };
 
   const getAssignedName = (assignedTo: string) => {
@@ -203,7 +261,7 @@ export default function ReceiptSplitScreen({ route, navigation }: any) {
       <View style={styles.headerCard}>
         <Text style={styles.headerTitle}>{scanResult.description}</Text>
         <Text style={styles.headerAmount}>{totalAmount.toFixed(2)} {currency}</Text>
-        <Text style={styles.headerSub}>{scanResult.items.length} Positionen erkannt</Text>
+        <Text style={styles.headerSub}>{items.length} Positionen</Text>
       </View>
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
@@ -231,6 +289,9 @@ export default function ReceiptSplitScreen({ route, navigation }: any) {
                 />
                 <Text style={styles.priceCurrency}>{currency}</Text>
               </View>
+              <TouchableOpacity onPress={() => removeItem(index)} style={styles.deleteBtn}>
+                <Text style={styles.deleteBtnText}>✕</Text>
+              </TouchableOpacity>
             </View>
             <TouchableOpacity
               style={styles.assignPicker}
@@ -244,6 +305,12 @@ export default function ReceiptSplitScreen({ route, navigation }: any) {
           </View>
         ))}
         <Text style={styles.priceHint}>Tippe auf einen Preis um ihn zu ändern</Text>
+
+        {/* Manuell hinzufügen */}
+        <TouchableOpacity style={styles.addItemBtn} onPress={addManualItem}>
+          <Text style={styles.addItemPlus}>+</Text>
+          <Text style={styles.addItemText}>Position manuell hinzufügen</Text>
+        </TouchableOpacity>
 
         {/* Zusammenfassung */}
         <Text style={[styles.sectionTitle, { marginTop: 8 }]}>ZUSAMMENFASSUNG</Text>
@@ -334,6 +401,60 @@ export default function ReceiptSplitScreen({ route, navigation }: any) {
             </TouchableOpacity>
           </View>
         </View>
+      </Modal>
+
+      {/* Position hinzufügen Modal */}
+      <Modal
+        visible={showAddModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowAddModal(false)}
+      >
+        <TouchableWithoutFeedback onPress={() => setShowAddModal(false)}>
+          <View style={styles.modalOverlay}>
+            <TouchableWithoutFeedback>
+              <View style={styles.addModalCard}>
+                <Text style={styles.modalTitle}>Position hinzufügen</Text>
+
+                <Text style={styles.addModalLabel}>Bezeichnung</Text>
+                <TextInput
+                  style={styles.addModalInput}
+                  placeholder="z.B. Mineralwasser"
+                  value={newItemName}
+                  onChangeText={setNewItemName}
+                  autoFocus
+                />
+
+                <View style={{ flexDirection: 'row', gap: 12, marginBottom: 24 }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.addModalLabel}>Menge</Text>
+                    <TextInput
+                      style={[styles.addModalInput, { textAlign: 'center', marginBottom: 0 }]}
+                      placeholder="1"
+                      value={newItemQuantity}
+                      onChangeText={setNewItemQuantity}
+                      keyboardType="number-pad"
+                    />
+                  </View>
+                  <View style={{ flex: 2 }}>
+                    <Text style={styles.addModalLabel}>Preis ({currency})</Text>
+                    <TextInput
+                      style={[styles.addModalInput, { textAlign: 'right', marginBottom: 0 }]}
+                      placeholder="0.00"
+                      value={newItemPrice}
+                      onChangeText={setNewItemPrice}
+                      keyboardType="decimal-pad"
+                    />
+                  </View>
+                </View>
+
+                <TouchableOpacity style={styles.addModalConfirmBtn} onPress={confirmAddItem}>
+                  <Text style={styles.addModalConfirmText}>Hinzufügen</Text>
+                </TouchableOpacity>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
       </Modal>
 
       {/* Zahler-Picker Modal */}
@@ -465,4 +586,30 @@ const styles = StyleSheet.create({
   modalCheck: { color: '#6C63FF', fontWeight: '700', fontSize: 16 },
   modalCancel: { alignItems: 'center', paddingVertical: 16, marginTop: 8 },
   modalCancelText: { color: '#888', fontSize: 15 },
+
+  deleteBtn: { padding: 6, marginLeft: 6, justifyContent: 'center' },
+  deleteBtnText: { color: '#FF3B30', fontSize: 16, fontWeight: '600' },
+
+  addItemBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    padding: 12, marginTop: 4, marginBottom: 8,
+    borderWidth: 1.5, borderColor: '#6C63FF', borderStyle: 'dashed', borderRadius: 12,
+    gap: 8,
+  },
+  addItemPlus: { fontSize: 20, color: '#6C63FF', lineHeight: 22 },
+  addItemText: { color: '#6C63FF', fontWeight: '500', fontSize: 15 },
+
+  addModalCard: {
+    backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20,
+    padding: 24, paddingBottom: 40,
+  },
+  addModalLabel: { fontSize: 13, color: 'gray', marginBottom: 6 },
+  addModalInput: {
+    borderWidth: 1, borderColor: '#E0E0E0', borderRadius: 10,
+    padding: 12, fontSize: 15, marginBottom: 16,
+  },
+  addModalConfirmBtn: {
+    backgroundColor: '#6C63FF', padding: 16, borderRadius: 12, alignItems: 'center',
+  },
+  addModalConfirmText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
 });
