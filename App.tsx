@@ -178,21 +178,21 @@ export default function App() {
             {/* Logo-Kreis */}
             <View
               style={{
-                width: 100,
-                height: 100,
-                borderRadius: 50,
+                width: 140,
+                height: 140,
+                borderRadius: 70,
                 backgroundColor: 'rgba(255,255,255,0.2)',
                 justifyContent: 'center',
                 alignItems: 'center',
-                marginBottom: 24,
+                marginBottom: 28,
               }}
             >
-              <Text style={{ fontSize: 52 }}>💸</Text>
+              <Text style={{ fontSize: 72 }}>💸</Text>
             </View>
 
             <Text
               style={{
-                fontSize: 40,
+                fontSize: 64,
                 fontWeight: '800',
                 color: '#fff',
                 letterSpacing: -1,
@@ -203,9 +203,9 @@ export default function App() {
 
             <Text
               style={{
-                fontSize: 16,
-                color: 'rgba(255,255,255,0.75)',
-                marginTop: 8,
+                fontSize: 22,
+                color: 'rgba(255,255,255,0.80)',
+                marginTop: 12,
                 letterSpacing: 0.2,
               }}
             >

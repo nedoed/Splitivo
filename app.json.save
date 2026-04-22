@@ -1,4 +1,4 @@
-{
+F5F1E8x{
   "expo": {
     "name": "Splitivo",
     "slug": "splitivo",
@@ -10,7 +10,7 @@
     "newArchEnabled": true,
     "splash": {
       "image": "./assets/splash-icon.png",
-      "resizeMode": "cover",
+      "resizeMode": "contain",
       "backgroundColor": "#6C63FF"
     },
     "ios": {
@@ -25,7 +25,7 @@
   "versionCode": 2,
   "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#F5F1E8"
+        "backgroundColor": "#6C63FF"
       },
       "package": "com.nedoed.splitivo",
       "edgeToEdgeEnabled": true,
@@ -67,7 +67,7 @@
         "expo-notifications",
         {
           "icon": "./assets/icon.png",
-          "color": "#131B38"
+          "color": "#6C63FF"
         }
       ]
     ]
