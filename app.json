@@ -2,7 +2,7 @@
   "expo": {
     "name": "Splitivo",
     "slug": "splitivo",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "scheme": "splitivo",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -11,19 +11,21 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#6C63FF"
+      "backgroundColor": "#F5F1E8"
     },
     "ios": {
-      "supportsTablet": true,
-      "bundleIdentifier": "com.nedoed.splitivo",
-      "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+  "supportsTablet": true,
+  "bundleIdentifier": "com.nedoed.splitivo",
+  "buildNumber": "1",
+  "infoPlist": {
+    "ITSAppUsesNonExemptEncryption": false
       }
     },
-    "android": {
-      "adaptiveIcon": {
+"android": {
+  "versionCode": 2,
+  "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#6C63FF"
+        "backgroundColor": "#F5F1E8"
       },
       "package": "com.nedoed.splitivo",
       "edgeToEdgeEnabled": true,
@@ -65,7 +67,7 @@
         "expo-notifications",
         {
           "icon": "./assets/icon.png",
-          "color": "#6C63FF"
+          "color": "#131B38"
         }
       ]
     ]
