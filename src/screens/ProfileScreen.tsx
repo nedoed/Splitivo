@@ -40,6 +40,8 @@ export default function ProfileScreen({ navigation }: any) {
   const [pickerHour, setPickerHour] = useState(9);
   const [pickerMinute, setPickerMinute] = useState(0);
 
+  const [deletingAccount, setDeletingAccount] = useState(false);
+
   const { theme, isDark, toggleTheme } = useTheme();
   const styles = getStyles(theme);
 
@@ -255,6 +257,71 @@ export default function ProfileScreen({ navigation }: any) {
     }
   };
 
+  const confirmDeleteAccount = () => {
+    haptics.warning();
+    Alert.alert(
+      'Konto wirklich löschen?',
+      'Diese Aktion kann nicht rückgängig gemacht werden. ' +
+      'Alle deine Daten werden unwiderruflich gelöscht:\n\n' +
+      '• Dein Profil\n' +
+      '• Alle Gruppen die du erstellt hast\n' +
+      '• Alle Ausgaben und Splits\n' +
+      '• Alle Kassenbons\n\n' +
+      'Andere Mitglieder deiner Gruppen sind nicht betroffen.',
+      [
+        { text: 'Abbrechen', style: 'cancel' },
+        {
+          text: 'Konto löschen',
+          style: 'destructive',
+          onPress: () => { haptics.heavy(); deleteAccount(); },
+        },
+      ]
+    );
+  };
+
+  const deleteAccount = async () => {
+    setDeletingAccount(true);
+    try {
+      const { data: userData } = await supabase.auth.getUser();
+      if (!userData.user) return;
+      const userId = userData.user.id;
+
+      // Kassenbon-Fotos aus Storage löschen (nur eigene)
+      const { data: receipts } = await supabase
+        .from('expenses')
+        .select('receipt_url')
+        .eq('paid_by', userId)
+        .not('receipt_url', 'is', null);
+
+      for (const receipt of receipts ?? []) {
+        if (receipt.receipt_url) {
+          const fileName = receipt.receipt_url.split('/').pop();
+          if (fileName) await supabase.storage.from('receipts').remove([fileName]);
+        }
+      }
+
+      // Avatar aus Storage löschen
+      if (profile?.avatar_url) {
+        const fileName = profile.avatar_url.split('/').pop();
+        if (fileName) await supabase.storage.from('avatars').remove([fileName]);
+      }
+
+      // Profil löschen – CASCADE löscht verknüpfte Daten (group_members, expenses, splits…)
+      await supabase.from('profiles').delete().eq('id', userId);
+
+      // Abmelden
+      await cancelAllReminders();
+      await supabase.auth.signOut();
+
+    } catch (error: any) {
+      setDeletingAccount(false);
+      Alert.alert(
+        'Fehler beim Löschen',
+        'Konto konnte nicht gelöscht werden. Bitte kontaktiere uns:\nneumueller.dom@gmail.com'
+      );
+    }
+  };
+
   const handleSignOut = async () => {
     Alert.alert('Abmelden', 'Möchtest du dich wirklich abmelden?', [
       { text: 'Abbrechen', style: 'cancel' },
@@ -456,7 +523,26 @@ export default function ProfileScreen({ navigation }: any) {
       <TouchableOpacity style={styles.signOutBtn} onPress={handleSignOut}>
         <Text style={styles.signOutText}>Abmelden</Text>
       </TouchableOpacity>
+
+      {/* Gefahrenzone */}
+      <View style={styles.dangerSection}>
+        <Text style={styles.dangerSectionTitle}>Gefahrenzone</Text>
+        <TouchableOpacity style={styles.deleteAccountBtn} onPress={confirmDeleteAccount}>
+          <Text style={styles.deleteAccountText}>🗑️  Konto löschen</Text>
+        </TouchableOpacity>
+      </View>
     </ScrollView>
+
+    {/* Lösch-Overlay */}
+    {deletingAccount && (
+      <View style={styles.deletingOverlay}>
+        <View style={styles.deletingCard}>
+          <ActivityIndicator size="large" color={theme.danger} />
+          <Text style={styles.deletingTitle}>Konto wird gelöscht…</Text>
+          <Text style={styles.deletingSubtitle}>Bitte warten</Text>
+        </View>
+      </View>
+    )}
 
     {/* Username-Edit Modal */}
     <Modal visible={editUsernameVisible} animationType="slide" transparent>
@@ -680,6 +766,35 @@ function getStyles(theme: Theme) {
       paddingVertical: 16, alignItems: 'center', marginTop: 8,
     },
     signOutText: { color: theme.danger, fontSize: 16, fontWeight: '600' },
+
+    dangerSection: { marginTop: 24, marginBottom: 8 },
+    dangerSectionTitle: {
+      fontSize: 13, fontWeight: '600', color: theme.textTertiary,
+      marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.5,
+    },
+    deleteAccountBtn: {
+      borderWidth: 1.5, borderColor: theme.danger, borderRadius: 12,
+      paddingVertical: 16, alignItems: 'center',
+      backgroundColor: theme.dangerBg,
+    },
+    deleteAccountText: { color: theme.danger, fontSize: 16, fontWeight: '600' },
+
+    deletingOverlay: {
+      position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+      backgroundColor: theme.overlay,
+      justifyContent: 'center', alignItems: 'center',
+    },
+    deletingCard: {
+      backgroundColor: theme.card, borderRadius: 20, padding: 32,
+      alignItems: 'center', width: 220,
+      shadowColor: '#000', shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.15, shadowRadius: 20, elevation: 10,
+    },
+    deletingTitle: {
+      fontSize: 16, fontWeight: '700', color: theme.text,
+      marginTop: 16, marginBottom: 4, textAlign: 'center',
+    },
+    deletingSubtitle: { fontSize: 13, color: theme.textSecondary, textAlign: 'center' },
 
     modalOverlay: { flex: 1, backgroundColor: theme.overlay, justifyContent: 'flex-end' },
     modalCard: { backgroundColor: theme.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24 },

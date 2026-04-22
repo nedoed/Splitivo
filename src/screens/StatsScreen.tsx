@@ -77,11 +77,13 @@ interface CurrencyStats {
   avgPerExpense: number;
 }
 
+// Schulden pro Währung pro Mitglied
 interface MemberDebt {
   userId: string;
   username: string;
-  owesMe: number;
-  iOwe: number;
+  owesMe: number;   // Summe über alle Währungen (für Sortierung)
+  iOwe: number;     // Summe über alle Währungen (für Sortierung)
+  byCurrency: Record<string, { owesMe: number; iOwe: number }>;
 }
 
 interface GroupStat {
@@ -89,6 +91,7 @@ interface GroupStat {
   total: number;
   count: number;
   percentage: number;
+  byCurrency: Record<string, number>;
 }
 
 export default function StatsScreen() {
@@ -103,13 +106,18 @@ export default function StatsScreen() {
   const [totalPaid, setTotalPaid] = useState(0);
   const [totalDebt, setTotalDebt] = useState(0);
   const [totalOwed, setTotalOwed] = useState(0);
+  // Schulden-Übersicht pro Währung
+  const [owedByCurrency, setOwedByCurrency] = useState<Record<string, number>>({});
+  const [oweByCurrency, setOweByCurrency] = useState<Record<string, number>>({});
+
   const [activeGroups, setActiveGroups] = useState(0);
   const [activestGroupName, setActivestGroupName] = useState('');
   const [trend, setTrend] = useState<number | null>(null);
   const [hasData, setHasData] = useState(false);
 
   const [groupStats, setGroupStats] = useState<GroupStat[]>([]);
-  const [monthlyData, setMonthlyData] = useState<{ labels: string[]; values: number[] }>({ labels: [], values: [] });
+  // 6-Monatstrend pro Währung
+  const [monthlyDataByCurrency, setMonthlyDataByCurrency] = useState<Record<string, { labels: string[]; values: number[] }>>({});
   const [memberDebts, setMemberDebts] = useState<MemberDebt[]>([]);
 
   const { theme } = useTheme();
@@ -157,19 +165,19 @@ export default function StatsScreen() {
       .filter((e) => e.paid_by === userId)
       .reduce((s, e) => s + e.amount, 0);
 
-    // ── 6-Monatstrend ─────────────────────────────────────────────────────────
+    // ── 6-Monatstrend (mit Währung für per-currency Charts) ───────────────────
     const sixMonthsAgo = new Date();
     sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5);
     sixMonthsAgo.setDate(1);
     sixMonthsAgo.setHours(0, 0, 0, 0);
     const { data: trendRaw } = await supabase
       .from('expenses')
-      .select('amount, date')
+      .select('amount, date, currency')
       .in('group_id', groupIds)
       .eq('paid_by', userId)
       .gte('date', sixMonthsAgo.toISOString());
 
-    // ── Was ich schulde (alle offenen Splits, zeitunabhängig) ──────────────────
+    // ── Was ich schulde (mit Währung) ─────────────────────────────────────────
     const { data: othersExpenses } = await supabase
       .from('expenses')
       .select('id')
@@ -177,17 +185,21 @@ export default function StatsScreen() {
       .neq('paid_by', userId);
 
     let debtTotal = 0;
+    const iOweArr: { amount: number; currency: string }[] = [];
     if (othersExpenses && othersExpenses.length > 0) {
       const { data: mySplits } = await supabase
         .from('expense_splits')
-        .select('amount')
+        .select('amount, expense:expenses!expense_id(currency)')
         .in('expense_id', othersExpenses.map((e) => e.id))
         .eq('user_id', userId)
         .eq('is_settled', false);
-      debtTotal = mySplits?.reduce((s, x) => s + x.amount, 0) ?? 0;
+      (mySplits ?? []).forEach((s: any) => {
+        debtTotal += s.amount;
+        iOweArr.push({ amount: s.amount, currency: (s.expense as any)?.currency ?? 'CHF' });
+      });
     }
 
-    // ── Was andere mir schulden ────────────────────────────────────────────────
+    // ── Was andere mir schulden (mit Währung) ─────────────────────────────────
     const { data: myExpenseIds } = await supabase
       .from('expenses')
       .select('id')
@@ -195,31 +207,47 @@ export default function StatsScreen() {
       .eq('paid_by', userId);
 
     let owedTotal = 0;
-    const owedSplitsArr: { user_id: string; amount: number }[] = [];
+    const owedSplitsArr: { user_id: string; amount: number; currency: string }[] = [];
     if (myExpenseIds && myExpenseIds.length > 0) {
       const { data: owedSplits } = await supabase
         .from('expense_splits')
-        .select('user_id, amount')
+        .select('user_id, amount, expense:expenses!expense_id(currency)')
         .in('expense_id', myExpenseIds.map((e) => e.id))
         .neq('user_id', userId)
         .eq('is_settled', false);
-      owedTotal = owedSplits?.reduce((s, x) => s + x.amount, 0) ?? 0;
-      owedSplitsArr.push(...(owedSplits ?? []));
+      (owedSplits ?? []).forEach((s: any) => {
+        owedTotal += s.amount;
+        owedSplitsArr.push({
+          user_id: s.user_id,
+          amount: s.amount,
+          currency: (s.expense as any)?.currency ?? 'CHF',
+        });
+      });
     }
 
-    // ── Meine Splits mit Zahler-Info (für Schulden pro Mitglied) ──────────────
+    // ── Meine Splits mit Zahler-Info + Währung (für Schulden pro Mitglied) ────
     const { data: mySplitsWithPayer } = await supabase
       .from('expense_splits')
-      .select('amount, expense:expenses!expense_id(paid_by, group_id)')
+      .select('amount, expense:expenses!expense_id(paid_by, group_id, currency)')
       .eq('user_id', userId)
       .eq('is_settled', false);
 
-    // Nur Splits in meinen Gruppen berücksichtigen
     const relevantOwesSplits = (mySplitsWithPayer ?? []).filter(
       (s: any) => groupIds.includes(s.expense?.group_id) && s.expense?.paid_by !== userId
     );
 
-    // Profile für Schulden-Heatmap laden
+    // ── Schulden pro Währung (für Overview-Card) ──────────────────────────────
+    const newOwedByCur: Record<string, number> = {};
+    owedSplitsArr.forEach((s) => {
+      newOwedByCur[s.currency] = (newOwedByCur[s.currency] ?? 0) + s.amount;
+    });
+
+    const newOweByCur: Record<string, number> = {};
+    iOweArr.forEach((s) => {
+      newOweByCur[s.currency] = (newOweByCur[s.currency] ?? 0) + s.amount;
+    });
+
+    // ── Profile für Schulden-Heatmap laden ────────────────────────────────────
     const debtUserIds = new Set<string>([
       ...owedSplitsArr.map((s) => s.user_id),
       ...relevantOwesSplits.map((s: any) => s.expense?.paid_by).filter(Boolean),
@@ -233,19 +261,30 @@ export default function StatsScreen() {
     const profileMap: Record<string, string> = {};
     (debtProfiles ?? []).forEach((p: any) => { profileMap[p.id] = p.username ?? '?'; });
 
+    // ── Schulden-Heatmap pro Mitglied und Währung ─────────────────────────────
     const debtMap: Record<string, MemberDebt> = {};
+
     owedSplitsArr.forEach((s) => {
       if (!debtMap[s.user_id])
-        debtMap[s.user_id] = { userId: s.user_id, username: profileMap[s.user_id] ?? '?', owesMe: 0, iOwe: 0 };
+        debtMap[s.user_id] = { userId: s.user_id, username: profileMap[s.user_id] ?? '?', owesMe: 0, iOwe: 0, byCurrency: {} };
       debtMap[s.user_id].owesMe += s.amount;
+      if (!debtMap[s.user_id].byCurrency[s.currency])
+        debtMap[s.user_id].byCurrency[s.currency] = { owesMe: 0, iOwe: 0 };
+      debtMap[s.user_id].byCurrency[s.currency].owesMe += s.amount;
     });
+
     relevantOwesSplits.forEach((s: any) => {
       const pid = s.expense?.paid_by;
+      const cur = s.expense?.currency ?? 'CHF';
       if (!pid) return;
       if (!debtMap[pid])
-        debtMap[pid] = { userId: pid, username: profileMap[pid] ?? '?', owesMe: 0, iOwe: 0 };
+        debtMap[pid] = { userId: pid, username: profileMap[pid] ?? '?', owesMe: 0, iOwe: 0, byCurrency: {} };
       debtMap[pid].iOwe += s.amount;
+      if (!debtMap[pid].byCurrency[cur])
+        debtMap[pid].byCurrency[cur] = { owesMe: 0, iOwe: 0 };
+      debtMap[pid].byCurrency[cur].iOwe += s.amount;
     });
+
     const memberDebtsArr = Object.values(debtMap)
       .filter((m) => m.owesMe > 0.005 || m.iOwe > 0.005)
       .sort((a, b) => (b.owesMe - b.iOwe) - (a.owesMe - a.iOwe));
@@ -291,30 +330,48 @@ export default function StatsScreen() {
     });
 
     // ── Gruppenvergleich ───────────────────────────────────────────────────────
-    const byGroup: Record<string, { name: string; total: number; count: number }> = {};
+    const byGroup: Record<string, { name: string; total: number; count: number; byCurrency: Record<string, number> }> = {};
     exps.forEach((e) => {
       const gid = e.group_id;
       const gname = (e.group as any)?.name ?? gid;
-      if (!byGroup[gid]) byGroup[gid] = { name: gname, total: 0, count: 0 };
+      const cur = e.currency ?? 'CHF';
+      if (!byGroup[gid]) byGroup[gid] = { name: gname, total: 0, count: 0, byCurrency: {} };
       byGroup[gid].total += e.amount;
       byGroup[gid].count += 1;
+      byGroup[gid].byCurrency[cur] = (byGroup[gid].byCurrency[cur] ?? 0) + e.amount;
     });
     const groupArr = Object.values(byGroup).sort((a, b) => b.total - a.total);
     const maxGroupTotal = groupArr[0]?.total ?? 1;
     const mostActiveByCount = Object.values(byGroup).sort((a, b) => b.count - a.count)[0];
 
-    // ── 6-Monats-Daten ────────────────────────────────────────────────────────
+    // ── 6-Monats-Daten pro Währung ─────────────────────────────────────────────
     const last6 = Array.from({ length: 6 }, (_, i) => {
       const d = new Date();
       d.setMonth(d.getMonth() - (5 - i));
       return { label: d.toLocaleString('de-CH', { month: 'short' }), year: d.getFullYear(), month: d.getMonth() };
     });
-    const monthTotals: Record<string, number> = {};
-    (trendRaw ?? []).forEach((e) => {
+
+    const monthTotalsByCur: Record<string, Record<string, number>> = {};
+    (trendRaw ?? []).forEach((e: any) => {
+      const cur = e.currency ?? 'CHF';
+      if (!monthTotalsByCur[cur]) monthTotalsByCur[cur] = {};
       const d = new Date(e.date);
       const key = `${d.getFullYear()}-${d.getMonth()}`;
-      monthTotals[key] = (monthTotals[key] ?? 0) + e.amount;
+      monthTotalsByCur[cur][key] = (monthTotalsByCur[cur][key] ?? 0) + e.amount;
     });
+
+    const newMonthlyData: Record<string, { labels: string[]; values: number[] }> = {};
+    Object.entries(monthTotalsByCur).forEach(([cur, totals]) => {
+      newMonthlyData[cur] = {
+        labels: last6.map((m) => m.label),
+        values: last6.map((m) => parseFloat((totals[`${m.year}-${m.month}`] ?? 0).toFixed(2))),
+      };
+    });
+    // Fallback: wenn gar keine Trend-Daten vorhanden, aber Ausgaben existieren
+    if (Object.keys(newMonthlyData).length === 0) {
+      const fallbackCur = Object.keys(newStats)[0] ?? 'CHF';
+      newMonthlyData[fallbackCur] = { labels: last6.map((m) => m.label), values: [0, 0, 0, 0, 0, 0] };
+    }
 
     // ── Trend ─────────────────────────────────────────────────────────────────
     const currentTotal = myExps.reduce((s, e) => s + e.amount, 0);
@@ -327,6 +384,8 @@ export default function StatsScreen() {
     setTotalPaid(currentTotal);
     setTotalDebt(debtTotal);
     setTotalOwed(owedTotal);
+    setOwedByCurrency(newOwedByCur);
+    setOweByCurrency(newOweByCur);
     setActiveGroups(new Set(exps.map((e) => e.group_id)).size);
     setActivestGroupName(mostActiveByCount?.name ?? '');
     setTrend(trendPct !== null ? parseFloat(trendPct.toFixed(1)) : null);
@@ -335,11 +394,11 @@ export default function StatsScreen() {
       total: parseFloat(g.total.toFixed(2)),
       count: g.count,
       percentage: Math.round((g.total / maxGroupTotal) * 100),
+      byCurrency: Object.fromEntries(
+        Object.entries(g.byCurrency).sort().map(([cur, amt]) => [cur, parseFloat(amt.toFixed(2))])
+      ),
     })));
-    setMonthlyData({
-      labels: last6.map((m) => m.label),
-      values: last6.map((m) => parseFloat((monthTotals[`${m.year}-${m.month}`] ?? 0).toFixed(2))),
-    });
+    setMonthlyDataByCurrency(newMonthlyData);
     setMemberDebts(memberDebtsArr);
     setHasData(exps.length > 0);
 
@@ -366,16 +425,11 @@ export default function StatsScreen() {
   };
 
   const displayCurrencies = selectedCurrency === 'all' ? currencies : [selectedCurrency];
-  const netDebt = totalOwed - totalDebt;
 
-  const lineChartData = {
-    labels: monthlyData.labels,
-    datasets: [{
-      data: monthlyData.values.some((v) => v > 0) ? monthlyData.values : [0, 0, 0, 0, 0, 0.01],
-      color: (opacity = 1) => `rgba(139, 132, 255, ${opacity})`,
-      strokeWidth: 2.5,
-    }],
-  };
+  // Alle Währungen aus Schulden-Daten (für Schulden-Übersicht)
+  const debtCurrencies = [
+    ...new Set([...Object.keys(owedByCurrency), ...Object.keys(oweByCurrency)]),
+  ].sort();
 
   const chartConfig = {
     backgroundColor: theme.card,
@@ -391,6 +445,11 @@ export default function StatsScreen() {
   const trendLabel =
     period === 'thisMonth' ? 'letzten Monat' :
     period === 'lastMonth' ? 'den Monat davor' : 'letztes Jahr';
+
+  // Welche Charts zeigen? Bei "Alle" alle vorhandenen Währungen, sonst nur die gewählte
+  const chartCurrencies = selectedCurrency === 'all'
+    ? Object.keys(monthlyDataByCurrency).sort()
+    : (monthlyDataByCurrency[selectedCurrency] ? [selectedCurrency] : Object.keys(monthlyDataByCurrency).sort());
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -413,7 +472,7 @@ export default function StatsScreen() {
           ))}
         </View>
 
-        {/* Währungs-Picker (nur wenn mehrere Währungen) */}
+        {/* Währungs-Picker */}
         {!loading && currencies.length > 1 && (
           <View style={styles.currencyRow}>
             <TouchableOpacity
@@ -473,47 +532,104 @@ export default function StatsScreen() {
 
           {/* ── Übersicht-Karten ──────────────────────────────────────────────── */}
           <View style={styles.overviewRow}>
+            {/* Ausgaben */}
             <View style={styles.overviewCard}>
               <Text style={styles.overviewValue}>
-                {totalPaid >= 1000 ? `${(totalPaid / 1000).toFixed(1)}k` : totalPaid.toFixed(0)}
+                {currencies.length > 1
+                  ? Object.values(statsByCurrency).reduce((s, cs) => s + cs.count, 0)
+                  : totalPaid >= 1000 ? `${(totalPaid / 1000).toFixed(1)}k` : totalPaid.toFixed(0)}
               </Text>
               <Text style={styles.overviewLabel}>Ausgaben</Text>
+              {currencies.length > 1 && (
+                <Text style={styles.overviewCurrencyHint}>{currencies.join(' · ')}</Text>
+              )}
             </View>
+
+            {/* Schulden */}
             <View style={[styles.overviewCard, styles.overviewCardMiddle]}>
-              <Text style={[styles.overviewValue, totalDebt > 0 && { color: theme.danger }]}>
-                {totalDebt.toFixed(0)}
-              </Text>
-              <Text style={styles.overviewLabel}>Schulden</Text>
+              {Object.keys(oweByCurrency).length === 0 ? (
+                <>
+                  <Text style={[styles.overviewValue, { color: theme.textTertiary }]}>0</Text>
+                  <Text style={styles.overviewLabel}>Schulden</Text>
+                </>
+              ) : (
+                <>
+                  {Object.entries(oweByCurrency).sort().map(([cur, amount]) => (
+                    <Text
+                      key={cur}
+                      style={[
+                        amount > 99 ? styles.overviewValueSm : styles.overviewValue,
+                        { color: theme.danger, marginBottom: 1 },
+                      ]}
+                    >
+                      {amount.toFixed(0)}
+                      <Text style={styles.overviewInlineCur}> {cur}</Text>
+                    </Text>
+                  ))}
+                  <Text style={styles.overviewLabel}>Schulden</Text>
+                </>
+              )}
             </View>
+
+            {/* Gruppen */}
             <View style={styles.overviewCard}>
               <Text style={styles.overviewValue}>{activeGroups}</Text>
               <Text style={styles.overviewLabel}>Gruppen</Text>
             </View>
           </View>
 
-          {/* ── Schulden-Übersicht ────────────────────────────────────────────── */}
+          {/* ── Schulden-Übersicht pro Währung ────────────────────────────────── */}
           {(totalOwed > 0.01 || totalDebt > 0.01) && (
             <View style={styles.card}>
               <Text style={styles.cardTitle}>Schulden Übersicht</Text>
               <View style={styles.debtRow}>
+                {/* Du bekommst */}
                 <View style={[styles.debtBox, { backgroundColor: theme.successBg }]}>
                   <Text style={styles.debtBoxLabel}>Du bekommst noch</Text>
-                  <Text style={[styles.debtBoxValue, { color: theme.success }]}>
-                    {totalOwed.toFixed(2)}
-                  </Text>
+                  {Object.keys(owedByCurrency).length === 0 ? (
+                    <Text style={[styles.debtBoxValue, { color: theme.success }]}>0.00</Text>
+                  ) : (
+                    Object.entries(owedByCurrency).sort().map(([cur, amt]) => (
+                      <View key={cur} style={styles.debtCurrencyRow}>
+                        <Text style={[styles.debtCurrencyLabel, { color: theme.success }]}>{cur}</Text>
+                        <Text style={[styles.debtCurrencyAmount, { color: theme.success }]}>
+                          {amt.toFixed(2)}
+                        </Text>
+                      </View>
+                    ))
+                  )}
                 </View>
+                {/* Du schuldest */}
                 <View style={[styles.debtBox, { backgroundColor: theme.dangerBg }]}>
                   <Text style={styles.debtBoxLabel}>Du schuldest noch</Text>
-                  <Text style={[styles.debtBoxValue, { color: theme.danger }]}>
-                    {totalDebt.toFixed(2)}
-                  </Text>
+                  {Object.keys(oweByCurrency).length === 0 ? (
+                    <Text style={[styles.debtBoxValue, { color: theme.danger }]}>0.00</Text>
+                  ) : (
+                    Object.entries(oweByCurrency).sort().map(([cur, amt]) => (
+                      <View key={cur} style={styles.debtCurrencyRow}>
+                        <Text style={[styles.debtCurrencyLabel, { color: theme.danger }]}>{cur}</Text>
+                        <Text style={[styles.debtCurrencyAmount, { color: theme.danger }]}>
+                          {amt.toFixed(2)}
+                        </Text>
+                      </View>
+                    ))
+                  )}
                 </View>
               </View>
-              <View style={[styles.netRow, { backgroundColor: netDebt >= 0 ? theme.successBg : theme.dangerBg }]}>
+              {/* Netto pro Währung */}
+              <View style={[styles.netBox, { backgroundColor: theme.card, borderWidth: 1, borderColor: theme.borderLight }]}>
                 <Text style={styles.netLabel}>Netto</Text>
-                <Text style={[styles.netValue, { color: netDebt >= 0 ? theme.success : theme.danger }]}>
-                  {netDebt >= 0 ? '+' : ''}{netDebt.toFixed(2)}
-                </Text>
+                {debtCurrencies.map((cur) => {
+                  const net = (owedByCurrency[cur] ?? 0) - (oweByCurrency[cur] ?? 0);
+                  return (
+                    <View key={cur} style={styles.debtCurrencyRow}>
+                      <Text style={styles.netCurrencyLabel}>{cur}</Text>
+                      <Text style={[styles.debtCurrencyAmount, { color: net >= 0 ? theme.success : theme.danger }]}>
+                        {net >= 0 ? '+' : ''}{net.toFixed(2)}
+                      </Text>
+                    </View>
+                  );
+                })}
               </View>
             </View>
           )}
@@ -524,7 +640,6 @@ export default function StatsScreen() {
             if (!stats) return null;
             return (
               <View key={cur}>
-                {/* Währungs-Abschnittsheader (nur bei "Alle" + mehrere) */}
                 {selectedCurrency === 'all' && currencies.length > 1 && (
                   <View style={styles.currencySectionHeader}>
                     <Text style={styles.currencySectionTitle}>{cur} Übersicht</Text>
@@ -534,12 +649,9 @@ export default function StatsScreen() {
                   </View>
                 )}
 
-                {/* Ø und Anzahl */}
                 <View style={styles.quickStatsRow}>
                   <View style={styles.quickStatCard}>
-                    <Text style={styles.quickStatValue}>
-                      Ø {stats.avgPerExpense.toFixed(2)}
-                    </Text>
+                    <Text style={styles.quickStatValue}>Ø {stats.avgPerExpense.toFixed(2)}</Text>
                     <Text style={styles.quickStatLabel}>Ø {cur} pro Ausgabe</Text>
                   </View>
                   <View style={styles.quickStatCard}>
@@ -548,7 +660,6 @@ export default function StatsScreen() {
                   </View>
                 </View>
 
-                {/* Grösste Einzelausgabe */}
                 {stats.maxExpense && (
                   <View style={styles.maxExpenseCard}>
                     <Text style={styles.maxExpenseIcon}>🏆</Text>
@@ -564,7 +675,6 @@ export default function StatsScreen() {
                   </View>
                 )}
 
-                {/* Horizontale Kategorie-Balken */}
                 {stats.categories.length > 0 && (
                   <View style={styles.card}>
                     <Text style={styles.cardTitle}>Kategorien · {cur}</Text>
@@ -574,7 +684,7 @@ export default function StatsScreen() {
                           <View style={[styles.catDot, { backgroundColor: cat.color }]} />
                           <Text style={styles.catName} numberOfLines={1}>{cat.name}</Text>
                           <Text style={styles.catPct}>{cat.pct}%</Text>
-                          <Text style={styles.catAmount}>{cat.amount.toFixed(2)}</Text>
+                          <Text style={styles.catAmount}>{cat.amount.toFixed(2)} {cur}</Text>
                         </View>
                         <View style={styles.catBarBg}>
                           <View style={[styles.catBarFill, { width: `${Math.max(cat.pct, 2)}%` as any, backgroundColor: cat.color }]} />
@@ -584,7 +694,6 @@ export default function StatsScreen() {
                   </View>
                 )}
 
-                {/* Top-Ausgaben */}
                 {stats.topExpenses.length > 0 && (
                   <View style={styles.card}>
                     <Text style={styles.cardTitle}>Grösste Ausgaben · {cur}</Text>
@@ -614,31 +723,45 @@ export default function StatsScreen() {
             );
           })}
 
-          {/* ── 6-Monats-Liniendiagramm ───────────────────────────────────────── */}
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Ausgaben-Trend · 6 Monate</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <LineChart
-                data={lineChartData}
-                width={Math.max(screenWidth - 48, 340)}
-                height={200}
-                chartConfig={chartConfig}
-                bezier
-                style={{ borderRadius: 12, marginTop: 8 }}
-                withInnerLines={false}
-                withShadow={false}
-              />
-            </ScrollView>
-          </View>
+          {/* ── 6-Monats-Liniendiagramme pro Währung ─────────────────────────── */}
+          {chartCurrencies.map((cur) => {
+            const md = monthlyDataByCurrency[cur];
+            if (!md) return null;
+            const chartData = {
+              labels: md.labels,
+              datasets: [{
+                data: md.values.some((v) => v > 0) ? md.values : [0, 0, 0, 0, 0, 0.01],
+                color: (opacity = 1) => `rgba(139, 132, 255, ${opacity})`,
+                strokeWidth: 2.5,
+              }],
+            };
+            return (
+              <View key={cur} style={styles.card}>
+                <Text style={styles.cardTitle}>
+                  Ausgaben-Trend · {cur} · 6 Monate
+                </Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  <LineChart
+                    data={chartData}
+                    width={Math.max(screenWidth - 48, 340)}
+                    height={200}
+                    chartConfig={chartConfig}
+                    bezier
+                    style={{ borderRadius: 12, marginTop: 8 }}
+                    withInnerLines={false}
+                    withShadow={false}
+                  />
+                </ScrollView>
+              </View>
+            );
+          })}
 
           {/* ── Gruppen-Vergleich ─────────────────────────────────────────────── */}
           {groupStats.length > 0 && (
             <View style={styles.card}>
               <Text style={styles.cardTitle}>Gruppen-Vergleich</Text>
               {activestGroupName !== '' && groupStats.length > 1 && (
-                <Text style={styles.activestGroup}>
-                  🏆 Aktivste Gruppe: {activestGroupName}
-                </Text>
+                <Text style={styles.activestGroup}>🏆 Aktivste Gruppe: {activestGroupName}</Text>
               )}
               {groupStats.map((group) => (
                 <View key={group.name} style={styles.groupStatRow}>
@@ -646,7 +769,13 @@ export default function StatsScreen() {
                     <Text style={styles.groupStatName} numberOfLines={1}>{group.name}</Text>
                     <View style={styles.groupStatRight}>
                       <Text style={styles.groupStatCount}>{group.count} Ausgaben</Text>
-                      <Text style={styles.groupStatAmount}>{group.total.toFixed(2)}</Text>
+                      <View style={{ alignItems: 'flex-end' }}>
+                        {Object.entries(group.byCurrency).map(([cur, amt]) => (
+                          <Text key={cur} style={styles.groupStatAmount}>
+                            {amt.toFixed(2)} {cur}
+                          </Text>
+                        ))}
+                      </View>
                     </View>
                   </View>
                   <View style={styles.progressBg}>
@@ -657,12 +786,12 @@ export default function StatsScreen() {
             </View>
           )}
 
-          {/* ── Schulden nach Mitglied ────────────────────────────────────────── */}
+          {/* ── Schulden nach Mitglied (pro Währung) ─────────────────────────── */}
           {memberDebts.length > 0 && (
             <View style={styles.card}>
               <Text style={styles.cardTitle}>Schulden nach Mitglied</Text>
               {memberDebts.map((m, idx) => {
-                const net = m.owesMe - m.iOwe;
+                const netTotal = m.owesMe - m.iOwe;
                 return (
                   <View
                     key={m.userId}
@@ -675,25 +804,30 @@ export default function StatsScreen() {
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.memberDebtName}>{m.username}</Text>
+                      {/* Chips pro Währung */}
                       <View style={styles.memberDebtBars}>
-                        {m.owesMe > 0.005 && (
-                          <View style={[styles.memberDebtChip, { backgroundColor: theme.successBg }]}>
-                            <Text style={[styles.memberDebtChipText, { color: theme.success }]}>
-                              +{m.owesMe.toFixed(2)}
-                            </Text>
-                          </View>
-                        )}
-                        {m.iOwe > 0.005 && (
-                          <View style={[styles.memberDebtChip, { backgroundColor: theme.dangerBg }]}>
-                            <Text style={[styles.memberDebtChipText, { color: theme.danger }]}>
-                              -{m.iOwe.toFixed(2)}
-                            </Text>
-                          </View>
-                        )}
+                        {Object.entries(m.byCurrency).sort().map(([cur, vals]) => (
+                          <React.Fragment key={cur}>
+                            {vals.owesMe > 0.005 && (
+                              <View style={[styles.memberDebtChip, { backgroundColor: theme.successBg }]}>
+                                <Text style={[styles.memberDebtChipText, { color: theme.success }]}>
+                                  +{vals.owesMe.toFixed(2)} {cur}
+                                </Text>
+                              </View>
+                            )}
+                            {vals.iOwe > 0.005 && (
+                              <View style={[styles.memberDebtChip, { backgroundColor: theme.dangerBg }]}>
+                                <Text style={[styles.memberDebtChipText, { color: theme.danger }]}>
+                                  -{vals.iOwe.toFixed(2)} {cur}
+                                </Text>
+                              </View>
+                            )}
+                          </React.Fragment>
+                        ))}
                       </View>
                     </View>
-                    <Text style={[styles.memberDebtNet, { color: net >= 0 ? theme.success : theme.danger }]}>
-                      {net >= 0 ? '+' : ''}{net.toFixed(2)}
+                    <Text style={[styles.memberDebtNet, { color: netTotal >= 0 ? theme.success : theme.danger }]}>
+                      {netTotal >= 0 ? '+' : ''}{netTotal.toFixed(2)}
                     </Text>
                   </View>
                 );
@@ -718,7 +852,6 @@ function getStyles(theme: Theme) {
     center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
     scroll: { paddingHorizontal: 16, paddingTop: 4 },
 
-    // Zeitraum-Selector
     periodRow: {
       flexDirection: 'row', backgroundColor: theme.toggleBg, borderRadius: 12, padding: 3, marginBottom: 10,
     },
@@ -730,7 +863,6 @@ function getStyles(theme: Theme) {
     periodBtnText: { fontSize: 12, fontWeight: '600', color: theme.textSecondary },
     periodBtnTextActive: { color: '#fff' },
 
-    // Währungs-Picker
     currencyRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
     currencyBtn: {
       paddingHorizontal: 16, paddingVertical: 6, borderRadius: 20,
@@ -740,11 +872,9 @@ function getStyles(theme: Theme) {
     currencyBtnText: { fontSize: 13, fontWeight: '600', color: theme.textSecondary },
     currencyBtnTextActive: { color: '#fff' },
 
-    // Trend-Banner
     trendBanner: { borderRadius: 12, padding: 12, marginBottom: 12, alignItems: 'center' },
     trendText: { fontSize: 14, fontWeight: '700' },
 
-    // Übersicht-Karten
     overviewRow: { flexDirection: 'row', gap: 10, marginBottom: 12 },
     overviewCard: {
       flex: 1, backgroundColor: theme.card, borderRadius: 14, padding: 16, alignItems: 'center',
@@ -752,25 +882,29 @@ function getStyles(theme: Theme) {
     },
     overviewCardMiddle: { borderWidth: 1.5, borderColor: theme.primaryLight },
     overviewValue: { fontSize: 22, fontWeight: '800', color: theme.primary, marginBottom: 4 },
+    overviewValueSm: { fontSize: 18, fontWeight: '800', color: theme.primary, marginBottom: 2 },
     overviewLabel: { fontSize: 11, color: theme.textTertiary, fontWeight: '600' },
+    overviewInlineCur: { fontSize: 13, fontWeight: '600' },
+    overviewCurrencyHint: { fontSize: 10, color: theme.textTertiary, fontWeight: '500', marginTop: 3, letterSpacing: 0.3 },
 
     // Schulden-Übersicht
     debtRow: { flexDirection: 'row', gap: 10, marginBottom: 10 },
     debtBox: { flex: 1, borderRadius: 12, padding: 14 },
-    debtBoxLabel: { fontSize: 11, fontWeight: '600', color: theme.textSecondary, marginBottom: 4 },
+    debtBoxLabel: { fontSize: 11, fontWeight: '600', color: theme.textSecondary, marginBottom: 6 },
     debtBoxValue: { fontSize: 20, fontWeight: '800' },
-    netRow: { borderRadius: 10, padding: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-    netLabel: { fontSize: 14, fontWeight: '600', color: theme.textSecondary },
-    netValue: { fontSize: 20, fontWeight: '800' },
+    debtCurrencyRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 },
+    debtCurrencyLabel: { fontSize: 13, fontWeight: '600' },
+    debtCurrencyAmount: { fontSize: 16, fontWeight: '800' },
+    netBox: { borderRadius: 10, padding: 12 },
+    netLabel: { fontSize: 12, fontWeight: '600', color: theme.textSecondary, marginBottom: 4 },
+    netCurrencyLabel: { fontSize: 13, fontWeight: '600', color: theme.textSecondary },
 
-    // Allgemeine Karte
     card: {
       backgroundColor: theme.card, borderRadius: 16, padding: 18, marginBottom: 12,
       shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 1,
     },
     cardTitle: { fontSize: 15, fontWeight: '700', color: theme.text, marginBottom: 14 },
 
-    // Währungs-Abschnittsheader
     currencySectionHeader: {
       flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
       marginBottom: 10, marginTop: 6,
@@ -778,7 +912,6 @@ function getStyles(theme: Theme) {
     currencySectionTitle: { fontSize: 17, fontWeight: '700', color: theme.text },
     currencySectionTotal: { fontSize: 17, fontWeight: '700', color: theme.primary },
 
-    // Schnell-Statistiken (Ø, Anzahl)
     quickStatsRow: { flexDirection: 'row', gap: 10, marginBottom: 12 },
     quickStatCard: {
       flex: 1, backgroundColor: theme.card, borderRadius: 12, padding: 14, alignItems: 'center',
@@ -787,7 +920,6 @@ function getStyles(theme: Theme) {
     quickStatValue: { fontSize: 18, fontWeight: '700', color: theme.primary, marginBottom: 2 },
     quickStatLabel: { fontSize: 11, color: theme.textTertiary, textAlign: 'center' },
 
-    // Grösste Einzelausgabe
     maxExpenseCard: {
       flexDirection: 'row', alignItems: 'center',
       backgroundColor: theme.card, borderRadius: 12, padding: 14, marginBottom: 12,
@@ -798,17 +930,15 @@ function getStyles(theme: Theme) {
     maxExpenseDesc: { fontSize: 14, fontWeight: '600', color: theme.text },
     maxExpenseAmount: { fontSize: 16, fontWeight: '700', color: theme.primary, marginLeft: 8 },
 
-    // Horizontale Kategorie-Balken
     catRow: { marginBottom: 14 },
     catLabelRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 5 },
     catDot: { width: 10, height: 10, borderRadius: 5, marginRight: 8, flexShrink: 0 },
     catName: { flex: 1, fontSize: 13, color: theme.text, fontWeight: '500' },
     catPct: { fontSize: 12, color: theme.textSecondary, fontWeight: '600', marginRight: 8 },
-    catAmount: { fontSize: 12, fontWeight: '700', color: theme.primary, minWidth: 60, textAlign: 'right' },
+    catAmount: { fontSize: 12, fontWeight: '700', color: theme.primary },
     catBarBg: { height: 7, backgroundColor: theme.progressBg, borderRadius: 4 },
     catBarFill: { height: 7, borderRadius: 4 },
 
-    // Ausgaben-Zeilen
     expenseRow: {
       flexDirection: 'row', alignItems: 'center',
       paddingVertical: 11, borderBottomWidth: 0.5, borderBottomColor: theme.borderLight,
@@ -823,7 +953,6 @@ function getStyles(theme: Theme) {
     expenseMeta: { fontSize: 12, color: theme.textTertiary, marginTop: 2 },
     expenseAmount: { fontSize: 14, fontWeight: '700', color: theme.primary, marginLeft: 8 },
 
-    // Gruppen-Vergleich
     activestGroup: { fontSize: 13, color: theme.textSecondary, marginBottom: 14, fontStyle: 'italic' },
     groupStatRow: { marginBottom: 14 },
     groupStatHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6, alignItems: 'center' },
@@ -834,7 +963,6 @@ function getStyles(theme: Theme) {
     progressBg: { height: 8, backgroundColor: theme.progressBg, borderRadius: 4 },
     progressFill: { height: 8, backgroundColor: theme.primary, borderRadius: 4 },
 
-    // Schulden nach Mitglied
     memberDebtRow: {
       flexDirection: 'row', alignItems: 'center',
       paddingVertical: 12, borderBottomWidth: 0.5, borderBottomColor: theme.borderLight,
@@ -845,9 +973,9 @@ function getStyles(theme: Theme) {
     },
     memberDebtAvatarText: { fontSize: 15, fontWeight: '700', color: theme.primary },
     memberDebtName: { fontSize: 14, fontWeight: '600', color: theme.text, marginBottom: 4 },
-    memberDebtBars: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+    memberDebtBars: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
     memberDebtChip: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 },
     memberDebtChipText: { fontSize: 11, fontWeight: '700' },
-    memberDebtNet: { fontSize: 16, fontWeight: '800', marginLeft: 8, minWidth: 70, textAlign: 'right' },
+    memberDebtNet: { fontSize: 15, fontWeight: '800', marginLeft: 8, minWidth: 64, textAlign: 'right' },
   });
 }
