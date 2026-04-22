@@ -11,6 +11,8 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as XLSX from 'xlsx';
 import { supabase } from '../lib/supabase';
 import EmptyState from '../components/EmptyState';
+import { useTheme } from '../lib/ThemeContext';
+import { Theme } from '../lib/theme';
 
 interface SpesaExpense {
   id: string;
@@ -32,6 +34,9 @@ export default function SpesaScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [exportModal, setExportModal] = useState(false);
+
+  const { theme } = useTheme();
+  const styles = getStyles(theme);
 
   const fetchSpesen = async () => {
     const { data: userData } = await supabase.auth.getUser();
@@ -92,12 +97,10 @@ export default function SpesaScreen() {
 
   useFocusEffect(useCallback(() => { fetchSpesen(); }, []));
 
-  // ─── Gruppiert nach Monat ───────────────────────────────────────────────────
-
   const groupByMonth = (items: SpesaExpense[]) => {
     const map: Record<string, SpesaExpense[]> = {};
     items.forEach((e) => {
-      const key = e.date.slice(0, 7); // "YYYY-MM"
+      const key = e.date.slice(0, 7);
       if (!map[key]) map[key] = [];
       map[key].push(e);
     });
@@ -120,19 +123,13 @@ export default function SpesaScreen() {
       .join(' + ');
   };
 
-  // ─── Excel Export ───────────────────────────────────────────────────────────
-
   const exportToExcel = async (range: ExportRange) => {
-    // Modal zuerst schliessen, dann Delay bevor wir weitermachen
     setExportModal(false);
     await new Promise((r) => setTimeout(r, 400));
     setExporting(true);
     await new Promise((r) => setTimeout(r, 50));
 
     try {
-      console.log('A. Export gestartet, Range:', range);
-
-      // ── Daten filtern ────────────────────────────────────────────────────
       const now = new Date();
       let filtered = expenses;
 
@@ -145,15 +142,11 @@ export default function SpesaScreen() {
         filtered = expenses.filter((e) => e.date.startsWith(prefix));
       }
 
-      console.log('B. Spesen werden geladen:', filtered.length);
-
       if (!filtered || filtered.length === 0) {
         Alert.alert('Keine Spesen', 'Keine Einträge für den gewählten Zeitraum.');
         return;
       }
 
-      // ── Excel-Workbook bauen (synchron → in setTimeout) ──────────────────
-      console.log('C. Excel Workbook wird erstellt...');
       const wbout: string = await new Promise((resolve, reject) => {
         setTimeout(() => {
           try {
@@ -183,58 +176,37 @@ export default function SpesaScreen() {
           }
         }, 0);
       });
-      console.log('D. Excel erstellt, Base64-Länge:', wbout.length);
 
-      // ── Datei schreiben ──────────────────────────────────────────────────
       const dir = FileSystem.documentDirectory ?? FileSystem.cacheDirectory;
       if (!dir) throw new Error('Kein Dateisystem-Verzeichnis verfügbar.');
       const fileUri = `${dir}spesen_export.xlsx`;
-      console.log('E. Datei wird geschrieben:', fileUri);
 
       await FileSystem.writeAsStringAsync(fileUri, wbout, {
         encoding: FileSystem.EncodingType.Base64,
       });
-      console.log('Datei gespeichert.');
 
-      // ── Spinner stoppen BEVOR Share-Sheet erscheint ──────────────────────
-      // (React re-render darf den nativen Dialog nicht unterbrechen)
       setExporting(false);
       await new Promise((r) => setTimeout(r, 100));
 
-      // ── Teilen via Share-Sheet ───────────────────────────────────────────
-      console.log('F. Sharing wird geöffnet...');
       const sharingAvailable = await Sharing.isAvailableAsync();
-      console.log('Sharing verfügbar:', sharingAvailable);
 
       if (sharingAvailable) {
-        await Sharing.shareAsync(fileUri, {
-          dialogTitle: 'Spesen exportieren',
-        });
-        console.log('Share-Sheet wurde geschlossen.');
+        await Sharing.shareAsync(fileUri, { dialogTitle: 'Spesen exportieren' });
       } else {
-        // Fallback: In Medien-Bibliothek speichern
-        console.log('Sharing nicht verfügbar – versuche MediaLibrary...');
         const { status } = await MediaLibrary.requestPermissionsAsync();
         if (status === 'granted') {
           const asset = await MediaLibrary.createAssetAsync(fileUri);
-          Alert.alert(
-            'Export erfolgreich ✅',
-            `Datei gespeichert: ${asset.filename}\n\nDu findest sie in der Dateien-App.`,
-            [{ text: 'OK' }]
-          );
+          Alert.alert('Export erfolgreich ✅', `Datei gespeichert: ${asset.filename}\n\nDu findest sie in der Dateien-App.`, [{ text: 'OK' }]);
         } else {
           Alert.alert('Gespeichert', `Datei liegt unter:\n${fileUri}`);
         }
       }
     } catch (e: any) {
-      console.log('Export Fehler:', e?.message ?? String(e));
       Alert.alert('Export Fehler', e?.message ?? 'Unbekannter Fehler.');
     } finally {
       setExporting(false);
     }
   };
-
-  // ─── Render ─────────────────────────────────────────────────────────────────
 
   const grouped = groupByMonth(expenses);
 
@@ -272,7 +244,6 @@ export default function SpesaScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-      {/* Header */}
       <View style={styles.header}>
         <View>
           <Text style={styles.title}>Spesen</Text>
@@ -292,7 +263,7 @@ export default function SpesaScreen() {
 
       {loading ? (
         <View style={styles.center}>
-          <ActivityIndicator size="large" color="#6C63FF" />
+          <ActivityIndicator size="large" color={theme.primary} />
         </View>
       ) : expenses.length === 0 ? (
         <EmptyState
@@ -310,13 +281,12 @@ export default function SpesaScreen() {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={() => { setRefreshing(true); fetchSpesen(); }}
-              tintColor="#6C63FF"
+              tintColor={theme.primary}
             />
           }
         />
       )}
 
-      {/* Export-Optionen Modal */}
       <Modal visible={exportModal} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
@@ -352,63 +322,64 @@ export default function SpesaScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8F8FF' },
+function getStyles(theme: Theme) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: theme.background },
 
-  header: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingHorizontal: 20, paddingTop: 10, paddingBottom: 12,
-  },
-  title: { fontSize: 24, fontWeight: '700', color: '#1a1a2e' },
-  subtitle: { fontSize: 12, color: '#888', marginTop: 2 },
+    header: {
+      flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+      paddingHorizontal: 20, paddingTop: 10, paddingBottom: 12,
+    },
+    title: { fontSize: 24, fontWeight: '700', color: theme.text },
+    subtitle: { fontSize: 12, color: theme.textSecondary, marginTop: 2 },
 
-  exportBtn: {
-    backgroundColor: '#6C63FF', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 9,
-  },
-  exportBtnDisabled: { opacity: 0.5 },
-  exportBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
+    exportBtn: {
+      backgroundColor: theme.primary, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 9,
+    },
+    exportBtnDisabled: { opacity: 0.5 },
+    exportBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
 
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  list: { padding: 16, paddingTop: 4 },
+    center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+    list: { padding: 16, paddingTop: 4 },
 
-  monthSection: { marginBottom: 20 },
-  monthHeader: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    marginBottom: 8,
-  },
-  monthTitle: { fontSize: 13, fontWeight: '700', color: '#6C63FF', textTransform: 'uppercase', letterSpacing: 0.5 },
-  monthTotal: { fontSize: 13, fontWeight: '700', color: '#6C63FF' },
+    monthSection: { marginBottom: 20 },
+    monthHeader: {
+      flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+      marginBottom: 8,
+    },
+    monthTitle: { fontSize: 13, fontWeight: '700', color: theme.primary, textTransform: 'uppercase', letterSpacing: 0.5 },
+    monthTotal: { fontSize: 13, fontWeight: '700', color: theme.primary },
 
-  row: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start',
-    backgroundColor: '#fff', borderRadius: 12, padding: 14, marginBottom: 8,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05,
-    shadowRadius: 6, elevation: 1,
-  },
-  rowLeft: { flex: 1, marginRight: 12 },
-  rowDate: { fontSize: 11, color: '#aaa', marginBottom: 2 },
-  rowDesc: { fontSize: 15, fontWeight: '600', color: '#1a1a2e' },
-  rowMeta: { fontSize: 12, color: '#888', marginTop: 2 },
-  rowRight: { alignItems: 'flex-end' },
-  rowAmount: { fontSize: 16, fontWeight: '700', color: '#1a1a2e', marginBottom: 6 },
+    row: {
+      flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start',
+      backgroundColor: theme.card, borderRadius: 12, padding: 14, marginBottom: 8,
+      shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05,
+      shadowRadius: 6, elevation: 1,
+    },
+    rowLeft: { flex: 1, marginRight: 12 },
+    rowDate: { fontSize: 11, color: theme.textTertiary, marginBottom: 2 },
+    rowDesc: { fontSize: 15, fontWeight: '600', color: theme.text },
+    rowMeta: { fontSize: 12, color: theme.textSecondary, marginTop: 2 },
+    rowRight: { alignItems: 'flex-end' },
+    rowAmount: { fontSize: 16, fontWeight: '700', color: theme.text, marginBottom: 6 },
 
-  badge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
-  badgeGreen: { backgroundColor: '#DCFCE7' },
-  badgeOrange: { backgroundColor: '#FEF3C7' },
-  badgeText: { fontSize: 10, fontWeight: '600', color: '#555' },
+    badge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+    badgeGreen: { backgroundColor: theme.badgeGreenBg },
+    badgeOrange: { backgroundColor: theme.badgeOrangeBg },
+    badgeText: { fontSize: 10, fontWeight: '600', color: theme.badgeText },
 
-
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
-  modalCard: { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24 },
-  modalTitle: { fontSize: 20, fontWeight: '700', color: '#1a1a2e', marginBottom: 4 },
-  modalSubtitle: { fontSize: 13, color: '#888', marginBottom: 16 },
-  exportOption: {
-    flexDirection: 'row', alignItems: 'center', paddingVertical: 16,
-    borderBottomWidth: 1, borderBottomColor: '#F0F0F0',
-  },
-  exportOptionIcon: { fontSize: 22, marginRight: 14 },
-  exportOptionText: { flex: 1, fontSize: 16, color: '#1a1a2e' },
-  exportOptionArrow: { fontSize: 20, color: '#ccc' },
-  modalCancel: { alignItems: 'center', paddingVertical: 16, marginTop: 4 },
-  modalCancelText: { color: '#888', fontSize: 15 },
-});
+    modalOverlay: { flex: 1, backgroundColor: theme.overlay, justifyContent: 'flex-end' },
+    modalCard: { backgroundColor: theme.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24 },
+    modalTitle: { fontSize: 20, fontWeight: '700', color: theme.text, marginBottom: 4 },
+    modalSubtitle: { fontSize: 13, color: theme.textSecondary, marginBottom: 16 },
+    exportOption: {
+      flexDirection: 'row', alignItems: 'center', paddingVertical: 16,
+      borderBottomWidth: 1, borderBottomColor: theme.borderLight,
+    },
+    exportOptionIcon: { fontSize: 22, marginRight: 14 },
+    exportOptionText: { flex: 1, fontSize: 16, color: theme.text },
+    exportOptionArrow: { fontSize: 20, color: theme.border },
+    modalCancel: { alignItems: 'center', paddingVertical: 16, marginTop: 4 },
+    modalCancelText: { color: theme.textSecondary, fontSize: 15 },
+  });
+}

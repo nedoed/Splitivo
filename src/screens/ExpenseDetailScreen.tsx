@@ -7,6 +7,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../lib/supabase';
 import { CATEGORIES, GroupMember } from '../types';
+import { useTheme } from '../lib/ThemeContext';
+import { Theme } from '../lib/theme';
 
 interface Split {
   id: string;
@@ -45,6 +47,9 @@ export default function ExpenseDetailScreen({ route, navigation }: any) {
 
   // Kassenbon Vollbild
   const [receiptFullscreen, setReceiptFullscreen] = useState(false);
+
+  const { theme } = useTheme();
+  const styles = getStyles(theme);
 
   const loadExpense = useCallback(async () => {
     const { data: userData } = await supabase.auth.getUser();
@@ -132,7 +137,7 @@ export default function ExpenseDetailScreen({ route, navigation }: any) {
   if (loading) {
     return (
       <SafeAreaView style={styles.container} edges={['bottom']}>
-        <View style={styles.center}><ActivityIndicator size="large" color="#6C63FF" /></View>
+        <View style={styles.center}><ActivityIndicator size="large" color={theme.primary} /></View>
       </SafeAreaView>
     );
   }
@@ -346,125 +351,119 @@ export default function ExpenseDetailScreen({ route, navigation }: any) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8F8FF' },
-  content: { padding: 16, paddingBottom: 40 },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  errorText: { color: '#888', fontSize: 15 },
+function getStyles(theme: Theme) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: theme.background },
+    content: { padding: 16, paddingBottom: 40 },
+    center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+    errorText: { color: theme.textSecondary, fontSize: 15 },
 
-  // ── Hero ────────────────────────────────────────────────────────────
-  heroCard: {
-    backgroundColor: '#6C63FF', borderRadius: 20, padding: 24, marginBottom: 20,
-    shadowColor: '#6C63FF', shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.3, shadowRadius: 16, elevation: 8,
-  },
-  heroCatBadge: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.2)', alignSelf: 'flex-start',
-    paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, marginBottom: 16,
-  },
-  heroCatIcon: { fontSize: 16, marginRight: 6 },
-  heroCatLabel: { fontSize: 12, color: '#fff', fontWeight: '600' },
-  heroTitle: { fontSize: 22, fontWeight: '700', color: '#fff', marginBottom: 8 },
-  heroAmount: { fontSize: 40, fontWeight: '800', color: '#fff', marginBottom: 16 },
-  heroMeta: { gap: 6, marginBottom: 16 },
-  heroMetaText: { fontSize: 13, color: 'rgba(255,255,255,0.85)' },
-  statusBadge: {
-    alignSelf: 'flex-start', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20,
-  },
-  statusGreen: { backgroundColor: 'rgba(34,197,94,0.25)' },
-  statusOrange: { backgroundColor: 'rgba(251,146,60,0.25)' },
-  statusText: { fontSize: 13, fontWeight: '600', color: '#fff' },
+    heroCard: {
+      backgroundColor: theme.primary, borderRadius: 20, padding: 24, marginBottom: 20,
+      shadowColor: theme.primary, shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.3, shadowRadius: 16, elevation: 8,
+    },
+    heroCatBadge: {
+      flexDirection: 'row', alignItems: 'center',
+      backgroundColor: 'rgba(255,255,255,0.2)', alignSelf: 'flex-start',
+      paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, marginBottom: 16,
+    },
+    heroCatIcon: { fontSize: 16, marginRight: 6 },
+    heroCatLabel: { fontSize: 12, color: '#fff', fontWeight: '600' },
+    heroTitle: { fontSize: 22, fontWeight: '700', color: '#fff', marginBottom: 8 },
+    heroAmount: { fontSize: 40, fontWeight: '800', color: '#fff', marginBottom: 16 },
+    heroMeta: { gap: 6, marginBottom: 16 },
+    heroMetaText: { fontSize: 13, color: 'rgba(255,255,255,0.85)' },
+    statusBadge: {
+      alignSelf: 'flex-start', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20,
+    },
+    statusGreen: { backgroundColor: 'rgba(34,197,94,0.25)' },
+    statusOrange: { backgroundColor: 'rgba(251,146,60,0.25)' },
+    statusText: { fontSize: 13, fontWeight: '600', color: '#fff' },
 
-  // ── Edit Inputs ─────────────────────────────────────────────────────
-  editDescInput: {
-    backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 12, padding: 12,
-    fontSize: 18, color: '#fff', fontWeight: '600', marginBottom: 10,
-  },
-  editAmountInput: {
-    backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 12, padding: 12,
-    fontSize: 32, color: '#fff', fontWeight: '800', marginBottom: 16, textAlign: 'center',
-  },
+    editDescInput: {
+      backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 12, padding: 12,
+      fontSize: 18, color: '#fff', fontWeight: '600', marginBottom: 10,
+    },
+    editAmountInput: {
+      backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 12, padding: 12,
+      fontSize: 32, color: '#fff', fontWeight: '800', marginBottom: 16, textAlign: 'center',
+    },
 
-  // ── Sections ────────────────────────────────────────────────────────
-  section: { marginBottom: 20 },
-  sectionTitle: {
-    fontSize: 12, fontWeight: '700', color: '#888',
-    textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10,
-  },
+    section: { marginBottom: 20 },
+    sectionTitle: {
+      fontSize: 12, fontWeight: '700', color: theme.textSecondary,
+      textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10,
+    },
 
-  // ── Kategorie-Chips ──────────────────────────────────────────────────
-  catScroll: { marginBottom: 4 },
-  catChip: {
-    alignItems: 'center', backgroundColor: '#fff', borderRadius: 12,
-    paddingHorizontal: 12, paddingVertical: 10, marginRight: 8,
-    borderWidth: 1.5, borderColor: '#E8E8F0', minWidth: 72,
-  },
-  catChipActive: { backgroundColor: '#EEF0FF', borderColor: '#6C63FF' },
-  catChipIcon: { fontSize: 20, marginBottom: 4 },
-  catChipLabel: { fontSize: 10, color: '#888', textAlign: 'center' },
-  catChipLabelActive: { color: '#6C63FF', fontWeight: '600' },
+    catScroll: { marginBottom: 4 },
+    catChip: {
+      alignItems: 'center', backgroundColor: theme.card, borderRadius: 12,
+      paddingHorizontal: 12, paddingVertical: 10, marginRight: 8,
+      borderWidth: 1.5, borderColor: theme.border, minWidth: 72,
+    },
+    catChipActive: { backgroundColor: theme.primaryLight, borderColor: theme.primary },
+    catChipIcon: { fontSize: 20, marginBottom: 4 },
+    catChipLabel: { fontSize: 10, color: theme.textSecondary, textAlign: 'center' },
+    catChipLabelActive: { color: theme.primary, fontWeight: '600' },
 
-  // ── Splits ───────────────────────────────────────────────────────────
-  splitRow: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff',
-    borderRadius: 12, padding: 14, marginBottom: 8,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 6, elevation: 1,
-  },
-  splitAvatar: {
-    width: 38, height: 38, borderRadius: 19, backgroundColor: '#EEF0FF',
-    justifyContent: 'center', alignItems: 'center', marginRight: 12,
-  },
-  splitAvatarText: { fontSize: 15, fontWeight: '700', color: '#6C63FF' },
-  splitInfo: { flex: 1 },
-  splitName: { fontSize: 14, fontWeight: '600', color: '#1a1a2e' },
-  splitAmount: { fontSize: 13, color: '#888', marginTop: 2 },
-  splitBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
-  splitBadgeGreen: { backgroundColor: '#DCFCE7' },
-  splitBadgeOrange: { backgroundColor: '#FEF3C7' },
-  splitBadgeText: { fontSize: 11, fontWeight: '600', color: '#555' },
-  myShareBox: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    backgroundColor: '#EEF0FF', borderRadius: 12, padding: 14, marginTop: 4,
-  },
-  myShareLabel: { fontSize: 14, color: '#6C63FF', fontWeight: '600' },
-  myShareAmount: { fontSize: 18, fontWeight: '700', color: '#6C63FF' },
+    splitRow: {
+      flexDirection: 'row', alignItems: 'center', backgroundColor: theme.card,
+      borderRadius: 12, padding: 14, marginBottom: 8,
+      shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 6, elevation: 1,
+    },
+    splitAvatar: {
+      width: 38, height: 38, borderRadius: 19, backgroundColor: theme.primaryLight,
+      justifyContent: 'center', alignItems: 'center', marginRight: 12,
+    },
+    splitAvatarText: { fontSize: 15, fontWeight: '700', color: theme.primary },
+    splitInfo: { flex: 1 },
+    splitName: { fontSize: 14, fontWeight: '600', color: theme.text },
+    splitAmount: { fontSize: 13, color: theme.textSecondary, marginTop: 2 },
+    splitBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
+    splitBadgeGreen: { backgroundColor: theme.badgeGreenBg },
+    splitBadgeOrange: { backgroundColor: theme.badgeOrangeBg },
+    splitBadgeText: { fontSize: 11, fontWeight: '600', color: theme.badgeText },
+    myShareBox: {
+      flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+      backgroundColor: theme.primaryLight, borderRadius: 12, padding: 14, marginTop: 4,
+    },
+    myShareLabel: { fontSize: 14, color: theme.primary, fontWeight: '600' },
+    myShareAmount: { fontSize: 18, fontWeight: '700', color: theme.primary },
 
-  // ── Kassenbon ────────────────────────────────────────────────────────
-  receiptThumb: { width: '100%', height: 200, borderRadius: 12 },
-  receiptTapHint: {
-    position: 'absolute', bottom: 10, right: 10,
-    backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5,
-  },
-  receiptTapText: { color: '#fff', fontSize: 11, fontWeight: '600' },
+    receiptThumb: { width: '100%', height: 200, borderRadius: 12 },
+    receiptTapHint: {
+      position: 'absolute', bottom: 10, right: 10,
+      backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5,
+    },
+    receiptTapText: { color: '#fff', fontSize: 11, fontWeight: '600' },
 
-  // ── Buttons ──────────────────────────────────────────────────────────
-  actionRow: { flexDirection: 'row', gap: 10, marginTop: 4 },
-  editBtn: {
-    flex: 1, backgroundColor: '#EEF0FF', borderRadius: 12,
-    paddingVertical: 14, alignItems: 'center',
-  },
-  editBtnText: { color: '#6C63FF', fontWeight: '700', fontSize: 14 },
-  deleteBtn: {
-    flex: 1, backgroundColor: '#FFF0F0', borderRadius: 12,
-    paddingVertical: 14, alignItems: 'center',
-  },
-  deleteBtnText: { color: '#FF4444', fontWeight: '700', fontSize: 14 },
-  primaryBtn: {
-    backgroundColor: '#6C63FF', borderRadius: 12, paddingVertical: 16,
-    alignItems: 'center', marginBottom: 10,
-    shadowColor: '#6C63FF', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4,
-  },
-  primaryBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
-  cancelBtn: { alignItems: 'center', paddingVertical: 12 },
-  cancelBtnText: { color: '#888', fontSize: 15 },
+    actionRow: { flexDirection: 'row', gap: 10, marginTop: 4 },
+    editBtn: {
+      flex: 1, backgroundColor: theme.primaryLight, borderRadius: 12,
+      paddingVertical: 14, alignItems: 'center',
+    },
+    editBtnText: { color: theme.primary, fontWeight: '700', fontSize: 14 },
+    deleteBtn: {
+      flex: 1, backgroundColor: theme.dangerBg, borderRadius: 12,
+      paddingVertical: 14, alignItems: 'center',
+    },
+    deleteBtnText: { color: theme.danger, fontWeight: '700', fontSize: 14 },
+    primaryBtn: {
+      backgroundColor: theme.primary, borderRadius: 12, paddingVertical: 16,
+      alignItems: 'center', marginBottom: 10,
+      shadowColor: theme.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4,
+    },
+    primaryBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+    cancelBtn: { alignItems: 'center', paddingVertical: 12 },
+    cancelBtnText: { color: theme.textSecondary, fontSize: 15 },
 
-  // ── Vollbild-Modal ───────────────────────────────────────────────────
-  fullscreenModal: { flex: 1, backgroundColor: '#000', justifyContent: 'center', alignItems: 'center' },
-  fullscreenClose: {
-    position: 'absolute', top: 56, right: 20, zIndex: 10,
-    backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 20,
-    paddingHorizontal: 14, paddingVertical: 8,
-  },
-  fullscreenCloseText: { color: '#fff', fontSize: 14, fontWeight: '700' },
-});
+    fullscreenModal: { flex: 1, backgroundColor: '#000', justifyContent: 'center', alignItems: 'center' },
+    fullscreenClose: {
+      position: 'absolute', top: 56, right: 20, zIndex: 10,
+      backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 20,
+      paddingHorizontal: 14, paddingVertical: 8,
+    },
+    fullscreenCloseText: { color: '#fff', fontSize: 14, fontWeight: '700' },
+  });
+}

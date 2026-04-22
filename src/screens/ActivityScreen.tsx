@@ -7,11 +7,16 @@ import { useFocusEffect } from '@react-navigation/native';
 import { supabase } from '../lib/supabase';
 import { Expense, CATEGORIES } from '../types';
 import EmptyState from '../components/EmptyState';
+import { useTheme } from '../lib/ThemeContext';
+import { Theme } from '../lib/theme';
 
 export default function ActivityScreen() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
+  const { theme } = useTheme();
+  const styles = getStyles(theme);
 
   const fetchActivity = async () => {
     const { data: user } = await supabase.auth.getUser();
@@ -94,7 +99,7 @@ export default function ActivityScreen() {
 
       {loading ? (
         <View style={styles.center}>
-          <ActivityIndicator size="large" color="#6C63FF" />
+          <ActivityIndicator size="large" color={theme.primary} />
         </View>
       ) : expenses.length === 0 ? (
         <EmptyState
@@ -109,7 +114,7 @@ export default function ActivityScreen() {
           renderItem={renderItem}
           contentContainerStyle={styles.list}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchActivity(); }} tintColor="#6C63FF" />
+            <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchActivity(); }} tintColor={theme.primary} />
           }
         />
       )}
@@ -117,23 +122,25 @@ export default function ActivityScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8F8FF' },
-  header: { padding: 20, paddingTop: 10 },
-  title: { fontSize: 24, fontWeight: '700', color: '#1a1a2e' },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  list: { padding: 16, paddingTop: 0 },
-  section: { marginBottom: 8 },
-  dateHeader: { fontSize: 12, fontWeight: '600', color: '#888', marginBottom: 8, marginTop: 8, textTransform: 'uppercase', letterSpacing: 0.5 },
-  expenseCard: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff',
-    borderRadius: 12, padding: 14, marginBottom: 8,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 1,
-  },
-  expenseIcon: { width: 42, height: 42, borderRadius: 21, backgroundColor: '#F0EEFF', justifyContent: 'center', alignItems: 'center', marginRight: 12 },
-  expenseIconText: { fontSize: 20 },
-  expenseInfo: { flex: 1 },
-  expenseName: { fontSize: 15, fontWeight: '600', color: '#1a1a2e' },
-  expenseMeta: { fontSize: 12, color: '#888', marginTop: 2 },
-  expenseAmount: { fontSize: 16, fontWeight: '700', color: '#6C63FF' },
-});
+function getStyles(theme: Theme) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: theme.background },
+    header: { padding: 20, paddingTop: 10 },
+    title: { fontSize: 24, fontWeight: '700', color: theme.text },
+    center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+    list: { padding: 16, paddingTop: 0 },
+    section: { marginBottom: 8 },
+    dateHeader: { fontSize: 12, fontWeight: '600', color: theme.textSecondary, marginBottom: 8, marginTop: 8, textTransform: 'uppercase', letterSpacing: 0.5 },
+    expenseCard: {
+      flexDirection: 'row', alignItems: 'center', backgroundColor: theme.card,
+      borderRadius: 12, padding: 14, marginBottom: 8,
+      shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 1,
+    },
+    expenseIcon: { width: 42, height: 42, borderRadius: 21, backgroundColor: theme.primaryLight, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
+    expenseIconText: { fontSize: 20 },
+    expenseInfo: { flex: 1 },
+    expenseName: { fontSize: 15, fontWeight: '600', color: theme.text },
+    expenseMeta: { fontSize: 12, color: theme.textSecondary, marginTop: 2 },
+    expenseAmount: { fontSize: 16, fontWeight: '700', color: theme.primary },
+  });
+}

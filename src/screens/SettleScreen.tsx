@@ -12,6 +12,8 @@ import EmptyState from '../components/EmptyState';
 import { simplifyDebts, countSavings } from '../lib/debtSimplification';
 import { payWithTwint, payWithPayPal, showBankDetails } from '../lib/payments';
 import { Debt } from '../types';
+import { useTheme } from '../lib/ThemeContext';
+import { Theme } from '../lib/theme';
 
 export default function SettleScreen() {
   const [allDebts, setAllDebts] = useState<Debt[]>([]);
@@ -22,6 +24,9 @@ export default function SettleScreen() {
   const [overdueCount, setOverdueCount] = useState(0);
   const [reminderDays, setReminderDays] = useState(7);
   const [paymentModalDebt, setPaymentModalDebt] = useState<Debt | null>(null);
+
+  const { theme } = useTheme();
+  const styles = getStyles(theme);
 
   const simplifiedAllDebts = useMemo(() => simplifyDebts(allDebts), [allDebts]);
   const savings = useMemo(() => countSavings(allDebts, simplifiedAllDebts), [allDebts, simplifiedAllDebts]);
@@ -63,7 +68,6 @@ export default function SettleScreen() {
 
     const expenseIds = expenses.map((e) => e.id);
 
-    // Reminder-Einstellungen laden
     const { data: profileData } = await supabase
       .from('profiles')
       .select('reminder_days, reminder_enabled')
@@ -85,7 +89,6 @@ export default function SettleScreen() {
       return;
     }
 
-    // key: "debtor|creditor|currency"
     const balances: { [key: string]: number } = {};
 
     splits.forEach((split: any) => {
@@ -123,8 +126,6 @@ export default function SettleScreen() {
       });
     }
 
-    // Überfällige eigene Schulden zählen (ich bin Schuldner)
-    // Wir schauen auf die älteste Ausgabe pro Schuldenposition
     const oldestDateByKey: Record<string, number> = {};
     splits.forEach((split: any) => {
       const debtor = split.user_id;
@@ -132,7 +133,7 @@ export default function SettleScreen() {
       const cur = split.expense?.currency ?? 'CHF';
       const dateStr = split.expense?.date;
       if (!creditor || debtor === creditor || !dateStr) return;
-      if (debtor !== user.user!.id) return; // nur meine eigenen Schulden
+      if (debtor !== user.user!.id) return;
       const key = `${debtor}|${creditor}|${cur}`;
       const ts = new Date(dateStr).getTime();
       if (!oldestDateByKey[key] || ts < oldestDateByKey[key]) {
@@ -215,7 +216,6 @@ export default function SettleScreen() {
   };
 
   const handlePayPal = async (debt: Debt) => {
-    // Empfänger-PayPal.me laden
     const { data: recipientProfile } = await supabase
       .from('profiles')
       .select('paypal_me')
@@ -251,7 +251,6 @@ export default function SettleScreen() {
       <View style={styles.header}>
         <Text style={styles.title}>Abrechnen</Text>
 
-        {/* Toggle: Meine Schulden / Vereinfacht */}
         {!loading && allDebts.length > 0 && (
           <View style={styles.toggleRow}>
             <TouchableOpacity
@@ -274,7 +273,6 @@ export default function SettleScreen() {
         )}
       </View>
 
-      {/* Savings Banner */}
       {simplified && savings > 0 && (
         <View style={styles.savingsBanner}>
           <Text style={styles.savingsText}>
@@ -283,7 +281,6 @@ export default function SettleScreen() {
         </View>
       )}
 
-      {/* Overdue-Banner */}
       {!loading && overdueCount > 0 && (
         <View style={styles.overdueBanner}>
           <Text style={styles.overdueIcon}>⚠️</Text>
@@ -308,7 +305,7 @@ export default function SettleScreen() {
 
       {loading ? (
         <View style={styles.center}>
-          <ActivityIndicator size="large" color="#6C63FF" />
+          <ActivityIndicator size="large" color={theme.primary} />
         </View>
       ) : myDebts.length === 0 ? (
         <EmptyState
@@ -322,7 +319,7 @@ export default function SettleScreen() {
           keyExtractor={(item, index) => `${item.from_user_id}-${item.to_user_id}-${index}`}
           contentContainerStyle={styles.list}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchDebts(); }} tintColor="#6C63FF" />
+            <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchDebts(); }} tintColor={theme.primary} />
           }
           renderItem={({ item }) => {
             const isDebtor = item.from_user_id === currentUserId;
@@ -398,7 +395,6 @@ export default function SettleScreen() {
           }}
         />
       )}
-      {/* Payment Options Modal */}
       {paymentModalDebt && (
         <View style={styles.modalBackdrop}>
           <View style={styles.modalSheet}>
@@ -457,106 +453,101 @@ export default function SettleScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8F8FF' },
-  header: { padding: 20, paddingTop: 10, paddingBottom: 12 },
-  title: { fontSize: 24, fontWeight: '700', color: '#1a1a2e', marginBottom: 12 },
+function getStyles(theme: Theme) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: theme.background },
+    header: { padding: 20, paddingTop: 10, paddingBottom: 12 },
+    title: { fontSize: 24, fontWeight: '700', color: theme.text, marginBottom: 12 },
 
-  // Toggle
-  toggleRow: { flexDirection: 'row', backgroundColor: '#EDEDFF', borderRadius: 12, padding: 3 },
-  toggleBtn: { flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: 10 },
-  toggleBtnActive: { backgroundColor: '#6C63FF', shadowColor: '#6C63FF', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 4, elevation: 3 },
-  toggleBtnText: { fontSize: 13, fontWeight: '600', color: '#888' },
-  toggleBtnTextActive: { color: '#fff' },
+    toggleRow: { flexDirection: 'row', backgroundColor: theme.toggleBg, borderRadius: 12, padding: 3 },
+    toggleBtn: { flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: 10 },
+    toggleBtnActive: { backgroundColor: theme.primary, shadowColor: theme.primary, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 4, elevation: 3 },
+    toggleBtnText: { fontSize: 13, fontWeight: '600', color: theme.textSecondary },
+    toggleBtnTextActive: { color: '#fff' },
 
-  // Savings banner
-  savingsBanner: {
-    marginHorizontal: 16, marginBottom: 8, paddingVertical: 10, paddingHorizontal: 14,
-    backgroundColor: '#EDE9FF', borderRadius: 10, borderLeftWidth: 3, borderLeftColor: '#6C63FF',
-  },
-  savingsText: { fontSize: 13, color: '#5A52E8', fontWeight: '600' },
+    savingsBanner: {
+      marginHorizontal: 16, marginBottom: 8, paddingVertical: 10, paddingHorizontal: 14,
+      backgroundColor: theme.savingsBg, borderRadius: 10, borderLeftWidth: 3, borderLeftColor: theme.primary,
+    },
+    savingsText: { fontSize: 13, color: theme.savingsText, fontWeight: '600' },
 
-  summaryRow: { flexDirection: 'row', paddingHorizontal: 16, gap: 12, marginBottom: 8 },
-  summaryCard: { flex: 1, borderRadius: 12, padding: 16 },
-  cardRed: { backgroundColor: '#FFF0F0' },
-  cardGreen: { backgroundColor: '#F0FFF4' },
-  summaryLabel: { fontSize: 12, color: '#888', marginBottom: 4 },
-  summaryAmount: { fontSize: 22, fontWeight: '700' },
-  amountRed: { color: '#FF4444' },
-  amountGreen: { color: '#22C55E' },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  list: { padding: 16 },
+    summaryRow: { flexDirection: 'row', paddingHorizontal: 16, gap: 12, marginBottom: 8 },
+    summaryCard: { flex: 1, borderRadius: 12, padding: 16 },
+    cardRed: { backgroundColor: theme.debtRedBg },
+    cardGreen: { backgroundColor: theme.debtGreenBg },
+    summaryLabel: { fontSize: 12, color: theme.textSecondary, marginBottom: 4 },
+    summaryAmount: { fontSize: 22, fontWeight: '700' },
+    amountRed: { color: theme.danger },
+    amountGreen: { color: theme.success },
+    center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+    list: { padding: 16 },
 
-  // Normal debt card
-  debtCard: {
-    backgroundColor: '#fff', borderRadius: 12, padding: 16, marginBottom: 10,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 1,
-  },
-  debtInfo: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
-  debtBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, marginRight: 10 },
-  debtBadgeRed: { backgroundColor: '#FFE0E0' },
-  debtBadgeGreen: { backgroundColor: '#DCFCE7' },
-  debtBadgeText: { fontSize: 11, fontWeight: '600', color: '#555' },
-  debtPerson: { flex: 1, fontSize: 16, fontWeight: '600', color: '#1a1a2e' },
-  debtAmount: { fontSize: 18, fontWeight: '700' },
+    debtCard: {
+      backgroundColor: theme.card, borderRadius: 12, padding: 16, marginBottom: 10,
+      shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 1,
+    },
+    debtInfo: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
+    debtBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, marginRight: 10 },
+    debtBadgeRed: { backgroundColor: theme.debtRedAvatar },
+    debtBadgeGreen: { backgroundColor: theme.debtGreenAvatar },
+    debtBadgeText: { fontSize: 11, fontWeight: '600', color: theme.badgeText },
+    debtPerson: { flex: 1, fontSize: 16, fontWeight: '600', color: theme.text },
+    debtAmount: { fontSize: 18, fontWeight: '700' },
 
-  // Simplified card
-  simplifiedCard: {
-    backgroundColor: '#fff', borderRadius: 14, padding: 16, marginBottom: 10,
-    shadowColor: '#6C63FF', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 8, elevation: 2,
-  },
-  simplifiedFlow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
-  simplifiedPerson: { alignItems: 'center', width: 72 },
-  simplifiedAvatar: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', marginBottom: 6 },
-  avatarRed: { backgroundColor: '#FFE0E0' },
-  avatarGreen: { backgroundColor: '#DCFCE7' },
-  simplifiedAvatarText: { fontSize: 18, fontWeight: '700', color: '#1a1a2e' },
-  simplifiedPersonName: { fontSize: 12, fontWeight: '600', color: '#555', textAlign: 'center' },
-  simplifiedArrowContainer: { flex: 1, alignItems: 'center' },
-  simplifiedAmount: { fontSize: 15, fontWeight: '700', marginBottom: 4 },
-  simplifiedArrow: { fontSize: 22, color: '#6C63FF', fontWeight: '700' },
+    simplifiedCard: {
+      backgroundColor: theme.card, borderRadius: 14, padding: 16, marginBottom: 10,
+      shadowColor: theme.primary, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 8, elevation: 2,
+    },
+    simplifiedFlow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+    simplifiedPerson: { alignItems: 'center', width: 72 },
+    simplifiedAvatar: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', marginBottom: 6 },
+    avatarRed: { backgroundColor: theme.debtRedAvatar },
+    avatarGreen: { backgroundColor: theme.debtGreenAvatar },
+    simplifiedAvatarText: { fontSize: 18, fontWeight: '700', color: theme.text },
+    simplifiedPersonName: { fontSize: 12, fontWeight: '600', color: theme.textSecondary, textAlign: 'center' },
+    simplifiedArrowContainer: { flex: 1, alignItems: 'center' },
+    simplifiedAmount: { fontSize: 15, fontWeight: '700', marginBottom: 4 },
+    simplifiedArrow: { fontSize: 22, color: theme.primary, fontWeight: '700' },
 
-  // Buttons
-  debtActions: { gap: 8 },
-  payBtn: { backgroundColor: '#6C63FF', borderRadius: 10, paddingVertical: 10, alignItems: 'center' },
-  payBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
-  settleBtn: { borderWidth: 1.5, borderColor: '#D1D5DB', borderRadius: 10, paddingVertical: 9, alignItems: 'center' },
-  settleBtnText: { color: '#888', fontWeight: '600', fontSize: 13 },
+    debtActions: { gap: 8 },
+    payBtn: { backgroundColor: theme.primary, borderRadius: 10, paddingVertical: 10, alignItems: 'center' },
+    payBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+    settleBtn: { borderWidth: 1.5, borderColor: theme.border, borderRadius: 10, paddingVertical: 9, alignItems: 'center' },
+    settleBtnText: { color: theme.textSecondary, fontWeight: '600', fontSize: 13 },
 
-  // Payment Modal
-  modalBackdrop: {
-    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end',
-  },
-  modalSheet: {
-    backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24,
-    padding: 24, paddingBottom: 36,
-  },
-  modalHandle: {
-    width: 36, height: 4, borderRadius: 2, backgroundColor: '#E0E0E0',
-    alignSelf: 'center', marginBottom: 20,
-  },
-  modalTitle: { fontSize: 20, fontWeight: '700', color: '#1a1a2e', marginBottom: 4 },
-  modalSubtitle: { fontSize: 14, color: '#888', marginBottom: 20 },
-  payOption: {
-    flexDirection: 'row', alignItems: 'center', paddingVertical: 14,
-    borderBottomWidth: 1, borderBottomColor: '#F0F0F0',
-  },
-  payOptionIcon: { width: 44, height: 44, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginRight: 14 },
-  payOptionEmoji: { fontSize: 22 },
-  payOptionText: { flex: 1 },
-  payOptionName: { fontSize: 16, fontWeight: '600', color: '#1a1a2e' },
-  payOptionDesc: { fontSize: 12, color: '#aaa', marginTop: 2 },
-  payOptionArrow: { fontSize: 22, color: '#ccc' },
-  modalCancelBtn: { marginTop: 16, alignItems: 'center', paddingVertical: 14 },
-  modalCancelText: { color: '#888', fontSize: 16, fontWeight: '600' },
+    modalBackdrop: {
+      position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+      backgroundColor: theme.overlay, justifyContent: 'flex-end',
+    },
+    modalSheet: {
+      backgroundColor: theme.card, borderTopLeftRadius: 24, borderTopRightRadius: 24,
+      padding: 24, paddingBottom: 36,
+    },
+    modalHandle: {
+      width: 36, height: 4, borderRadius: 2, backgroundColor: theme.border,
+      alignSelf: 'center', marginBottom: 20,
+    },
+    modalTitle: { fontSize: 20, fontWeight: '700', color: theme.text, marginBottom: 4 },
+    modalSubtitle: { fontSize: 14, color: theme.textSecondary, marginBottom: 20 },
+    payOption: {
+      flexDirection: 'row', alignItems: 'center', paddingVertical: 14,
+      borderBottomWidth: 1, borderBottomColor: theme.borderLight,
+    },
+    payOptionIcon: { width: 44, height: 44, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginRight: 14 },
+    payOptionEmoji: { fontSize: 22 },
+    payOptionText: { flex: 1 },
+    payOptionName: { fontSize: 16, fontWeight: '600', color: theme.text },
+    payOptionDesc: { fontSize: 12, color: theme.textTertiary, marginTop: 2 },
+    payOptionArrow: { fontSize: 22, color: theme.border },
+    modalCancelBtn: { marginTop: 16, alignItems: 'center', paddingVertical: 14 },
+    modalCancelText: { color: theme.textSecondary, fontSize: 16, fontWeight: '600' },
 
-  // Overdue banner
-  overdueBanner: {
-    marginHorizontal: 16, marginBottom: 8, paddingVertical: 10, paddingHorizontal: 14,
-    backgroundColor: '#FFF3CD', borderRadius: 10, borderLeftWidth: 3, borderLeftColor: '#F59E0B',
-    flexDirection: 'row', alignItems: 'center',
-  },
-  overdueIcon: { fontSize: 16, marginRight: 8 },
-  overdueText: { fontSize: 13, color: '#92400E', fontWeight: '600', flex: 1 },
-});
+    overdueBanner: {
+      marginHorizontal: 16, marginBottom: 8, paddingVertical: 10, paddingHorizontal: 14,
+      backgroundColor: theme.warningBg, borderRadius: 10, borderLeftWidth: 3, borderLeftColor: theme.warning,
+      flexDirection: 'row', alignItems: 'center',
+    },
+    overdueIcon: { fontSize: 16, marginRight: 8 },
+    overdueText: { fontSize: 13, color: theme.warningText, fontWeight: '600', flex: 1 },
+  });
+}

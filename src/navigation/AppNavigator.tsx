@@ -4,6 +4,7 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { Platform, Text } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { haptics } from '../lib/haptics';
+import { useTheme } from '../lib/ThemeContext';
 
 import GroupsScreen from '../screens/GroupsScreen';
 import GroupDetailScreen from '../screens/GroupDetailScreen';
@@ -20,15 +21,15 @@ import StatsScreen from '../screens/StatsScreen';
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
 
-const HEADER_OPTIONS = {
-  headerStyle: { backgroundColor: '#fff', elevation: 0, shadowOpacity: 0 },
-  headerTitleStyle: { fontWeight: '700' as const, color: '#1a1a2e', fontSize: 18 },
-  headerTintColor: '#6C63FF',
-};
-
 function ProfileStack() {
+  const { theme } = useTheme();
+  const headerOptions = {
+    headerStyle: { backgroundColor: theme.card, elevation: 0, shadowOpacity: 0 },
+    headerTitleStyle: { fontWeight: '700' as const, color: theme.text, fontSize: 18 },
+    headerTintColor: theme.primary,
+  };
   return (
-    <Stack.Navigator screenOptions={HEADER_OPTIONS}>
+    <Stack.Navigator screenOptions={headerOptions}>
       <Stack.Screen name="ProfileMain" component={ProfileScreen} options={{ headerShown: false }} />
       <Stack.Screen name="Friends" component={FriendsScreen} options={{ title: 'Freunde' }} />
     </Stack.Navigator>
@@ -36,12 +37,13 @@ function ProfileStack() {
 }
 
 function GroupsStack() {
+  const { theme } = useTheme();
   return (
     <Stack.Navigator
       screenOptions={{
-        headerStyle: { backgroundColor: '#fff', elevation: 0, shadowOpacity: 0 },
-        headerTitleStyle: { fontWeight: '700', color: '#1a1a2e', fontSize: 18 },
-        headerTintColor: '#6C63FF',
+        headerStyle: { backgroundColor: theme.card, elevation: 0, shadowOpacity: 0 },
+        headerTitleStyle: { fontWeight: '700', color: theme.text, fontSize: 18 },
+        headerTintColor: theme.primary,
       }}
     >
       <Stack.Screen name="GroupsList" component={GroupsScreen} options={{ title: 'Gruppen', headerShown: false }} />
@@ -68,8 +70,7 @@ const TAB_ICONS: { [key: string]: { active: string; inactive: string } } = {
 
 export default function AppNavigator() {
   const insets = useSafeAreaInsets();
-  // Auf Android mit edgeToEdgeEnabled muss die Tab-Bar den System-Navigationsbereich
-  // (Zurück/Home/Übersicht) nach unten ausweichen. insets.bottom gibt den genauen Wert.
+  const { theme } = useTheme();
   const bottomInset = Platform.OS === 'android'
     ? Math.max(insets.bottom, 16)
     : insets.bottom;
@@ -85,11 +86,12 @@ export default function AppNavigator() {
           const icons = TAB_ICONS[route.name] ?? { active: '•', inactive: '•' };
           return <Text style={{ fontSize: 22 }}>{focused ? icons.active : icons.inactive}</Text>;
         },
-        tabBarActiveTintColor: '#6C63FF',
-        tabBarInactiveTintColor: '#999',
+        tabBarActiveTintColor: theme.primary,
+        tabBarInactiveTintColor: theme.textSecondary,
         tabBarStyle: {
-          backgroundColor: '#fff',
-          borderTopWidth: 0,
+          backgroundColor: theme.tabBar,
+          borderTopWidth: 0.5,
+          borderTopColor: theme.tabBarBorder,
           shadowColor: '#000',
           shadowOffset: { width: 0, height: -4 },
           shadowOpacity: 0.06,

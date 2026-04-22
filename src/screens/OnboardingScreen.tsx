@@ -10,6 +10,8 @@ import {
   ListRenderItemInfo,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useTheme } from '../lib/ThemeContext';
+import { Theme } from '../lib/theme';
 
 const { width } = Dimensions.get('window');
 
@@ -48,6 +50,8 @@ interface Props {
 export default function OnboardingScreen({ onDone }: Props) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const flatListRef = useRef<FlatList<Slide>>(null);
+  const { theme } = useTheme();
+  const styles = getStyles(theme);
 
   const completeOnboarding = async () => {
     await AsyncStorage.setItem('onboarding_completed', 'true');
@@ -118,10 +122,11 @@ export default function OnboardingScreen({ onDone }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+function getStyles(theme: Theme) {
+  return StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: theme.background,
   },
   skipButton: {
     alignSelf: 'flex-end',
@@ -131,7 +136,7 @@ const styles = StyleSheet.create({
   },
   skipText: {
     fontSize: 15,
-    color: '#999',
+    color: theme.textSecondary,
     fontWeight: '500',
   },
   slide: {
@@ -149,13 +154,13 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#1a1a2e',
+    color: theme.text,
     textAlign: 'center',
     marginBottom: 16,
   },
   text: {
     fontSize: 16,
-    color: '#888',
+    color: theme.textSecondary,
     textAlign: 'center',
     lineHeight: 24,
   },
@@ -173,20 +178,20 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#E0E0E0',
+    backgroundColor: theme.border,
   },
   dotActive: {
-    backgroundColor: '#6C63FF',
+    backgroundColor: theme.primary,
     width: 24,
   },
   button: {
-    backgroundColor: '#6C63FF',
+    backgroundColor: theme.primary,
     borderRadius: 16,
     paddingVertical: 16,
     paddingHorizontal: 48,
     width: '100%',
     alignItems: 'center',
-    shadowColor: '#6C63FF',
+    shadowColor: theme.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -197,4 +202,5 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '700',
   },
-});
+  });
+}

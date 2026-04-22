@@ -11,6 +11,8 @@ import { supabase } from '../lib/supabase';
 import { haptics } from '../lib/haptics';
 import { cancelAllReminders, checkAndScheduleReminders } from '../lib/reminders';
 import { Profile } from '../types';
+import { useTheme } from '../lib/ThemeContext';
+import { Theme } from '../lib/theme';
 
 const REMINDER_DAY_OPTIONS = [3, 7, 14];
 
@@ -24,14 +26,12 @@ export default function ProfileScreen({ navigation }: any) {
   const [newUsername, setNewUsername] = useState('');
   const [savingUsername, setSavingUsername] = useState(false);
 
-  // Payment details
   const [paymentModalVisible, setPaymentModalVisible] = useState(false);
   const [editPayPal, setEditPayPal] = useState('');
   const [editIban, setEditIban] = useState('');
   const [editBankName, setEditBankName] = useState('');
   const [savingPayment, setSavingPayment] = useState(false);
 
-  // Reminder settings
   const [reminderEnabled, setReminderEnabled] = useState(true);
   const [reminderDays, setReminderDays] = useState(7);
   const [reminderTime, setReminderTime] = useState('09:00');
@@ -39,6 +39,9 @@ export default function ProfileScreen({ navigation }: any) {
   const [timePickerVisible, setTimePickerVisible] = useState(false);
   const [pickerHour, setPickerHour] = useState(9);
   const [pickerMinute, setPickerMinute] = useState(0);
+
+  const { theme, isDark, toggleTheme } = useTheme();
+  const styles = getStyles(theme);
 
   const fetchProfile = async () => {
     const { data: user } = await supabase.auth.getUser();
@@ -54,7 +57,6 @@ export default function ProfileScreen({ navigation }: any) {
     if (!profileRes.error && profileRes.data) {
       setProfile(profileRes.data);
 
-      // Sync reminder settings from profile
       setReminderEnabled(profileRes.data.reminder_enabled ?? true);
       setReminderDays(profileRes.data.reminder_days ?? 7);
       setReminderTime(profileRes.data.reminder_time ?? '09:00');
@@ -64,7 +66,6 @@ export default function ProfileScreen({ navigation }: any) {
       setPickerHour(h);
       setPickerMinute(m);
 
-      // Payment details
       setEditPayPal(profileRes.data.paypal_me ?? '');
       setEditIban(profileRes.data.iban ?? '');
       setEditBankName(profileRes.data.bank_name ?? '');
@@ -89,7 +90,6 @@ export default function ProfileScreen({ navigation }: any) {
     if (!user.user) return;
     await supabase.from('profiles').update(fields).eq('id', user.user.id);
 
-    // Re-schedule reminders after any settings change
     const newEnabled = 'reminder_enabled' in fields ? (fields.reminder_enabled ?? reminderEnabled) : reminderEnabled;
     if (newEnabled) {
       checkAndScheduleReminders();
@@ -124,7 +124,6 @@ export default function ProfileScreen({ navigation }: any) {
   };
 
   const openPaymentModal = () => {
-    // Re-sync from current profile state before opening
     setEditPayPal(profile?.paypal_me ?? '');
     setEditIban(profile?.iban ?? '');
     setEditBankName(profile?.bank_name ?? '');
@@ -274,7 +273,7 @@ export default function ProfileScreen({ navigation }: any) {
     return (
       <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
         <View style={styles.center}>
-          <ActivityIndicator size="large" color="#6C63FF" />
+          <ActivityIndicator size="large" color={theme.primary} />
         </View>
       </SafeAreaView>
     );
@@ -285,7 +284,7 @@ export default function ProfileScreen({ navigation }: any) {
     <ScrollView
       style={styles.scrollView}
       contentContainerStyle={styles.content}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchProfile(); }} tintColor="#6C63FF" />}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchProfile(); }} tintColor={theme.primary} />}
     >
       <View style={styles.profileSection}>
         <TouchableOpacity style={styles.avatarContainer} onPress={changeAvatar} disabled={uploadingAvatar}>
@@ -357,6 +356,24 @@ export default function ProfileScreen({ navigation }: any) {
         </TouchableOpacity>
       </View>
 
+      {/* Dark Mode-Sektion */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Darstellung</Text>
+        <View style={styles.menuItem}>
+          <Text style={styles.menuIcon}>{isDark ? '🌙' : '☀️'}</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.menuLabel}>Dark Mode</Text>
+            <Text style={styles.menuSub}>{isDark ? 'Dunkles Design aktiv' : 'Helles Design aktiv'}</Text>
+          </View>
+          <Switch
+            value={isDark}
+            onValueChange={() => { haptics.selection(); toggleTheme(); }}
+            trackColor={{ false: theme.border, true: theme.primary }}
+            thumbColor="#FFFFFF"
+          />
+        </View>
+      </View>
+
       {/* Zahlungsdetails-Sektion */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Zahlungsdetails</Text>
@@ -379,19 +396,17 @@ export default function ProfileScreen({ navigation }: any) {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Erinnerungen</Text>
 
-        {/* Erinnerungen aktiv */}
         <View style={styles.menuItem}>
           <Text style={styles.menuIcon}>🔔</Text>
           <Text style={styles.menuLabel}>Erinnerungen aktiv</Text>
           <Switch
             value={reminderEnabled}
             onValueChange={toggleReminderEnabled}
-            trackColor={{ false: '#E0E0E0', true: '#BDB9FF' }}
-            thumbColor={reminderEnabled ? '#6C63FF' : '#f4f3f4'}
+            trackColor={{ false: theme.border, true: theme.primary }}
+            thumbColor="#FFFFFF"
           />
         </View>
 
-        {/* Erinnere mich nach X Tagen */}
         <View style={[styles.menuItem, styles.menuItemColumn, !reminderEnabled && styles.disabled]}>
           <View style={styles.menuItemRow}>
             <Text style={styles.menuIcon}>⏰</Text>
@@ -413,20 +428,18 @@ export default function ProfileScreen({ navigation }: any) {
           </View>
         </View>
 
-        {/* Tägliche Zusammenfassung */}
         <View style={[styles.menuItem, !reminderEnabled && styles.disabled]}>
           <Text style={styles.menuIcon}>📊</Text>
           <Text style={styles.menuLabel}>Tägliche Zusammenfassung</Text>
           <Switch
             value={reminderDailySummary}
             onValueChange={toggleDailySummary}
-            trackColor={{ false: '#E0E0E0', true: '#BDB9FF' }}
-            thumbColor={reminderDailySummary ? '#6C63FF' : '#f4f3f4'}
+            trackColor={{ false: theme.border, true: theme.primary }}
+            thumbColor="#FFFFFF"
             disabled={!reminderEnabled}
           />
         </View>
 
-        {/* Uhrzeit */}
         <TouchableOpacity
           style={[styles.menuItem, (!reminderEnabled || !reminderDailySummary) && styles.disabled]}
           onPress={openTimePicker}
@@ -459,7 +472,7 @@ export default function ProfileScreen({ navigation }: any) {
               value={newUsername}
               onChangeText={setNewUsername}
               placeholder="Neuer Benutzername"
-              placeholderTextColor="#bbb"
+              placeholderTextColor={theme.textTertiary}
               autoFocus
               autoCapitalize="none"
               returnKeyType="done"
@@ -501,7 +514,7 @@ export default function ProfileScreen({ navigation }: any) {
                 value={editPayPal}
                 onChangeText={setEditPayPal}
                 placeholder="deinname"
-                placeholderTextColor="#bbb"
+                placeholderTextColor={theme.textTertiary}
                 autoCapitalize="none"
                 autoCorrect={false}
                 returnKeyType="next"
@@ -514,7 +527,7 @@ export default function ProfileScreen({ navigation }: any) {
               value={editIban}
               onChangeText={setEditIban}
               placeholder="CH93 0076 2011 6238 5295 7"
-              placeholderTextColor="#bbb"
+              placeholderTextColor={theme.textTertiary}
               autoCapitalize="characters"
               autoCorrect={false}
               returnKeyType="next"
@@ -527,7 +540,7 @@ export default function ProfileScreen({ navigation }: any) {
               value={editBankName}
               onChangeText={setEditBankName}
               placeholder="z.B. Zürcher Kantonalbank"
-              placeholderTextColor="#bbb"
+              placeholderTextColor={theme.textTertiary}
               autoCorrect={false}
               returnKeyType="done"
               onSubmitEditing={savePaymentDetails}
@@ -557,7 +570,6 @@ export default function ProfileScreen({ navigation }: any) {
         <View style={styles.modalCard}>
           <Text style={styles.modalTitle}>Uhrzeit wählen</Text>
           <View style={styles.timePickerRow}>
-            {/* Stunden */}
             <View style={styles.timePickerCol}>
               <Text style={styles.timePickerLabel}>Stunden</Text>
               <TouchableOpacity style={styles.timePickerBtn} onPress={() => setPickerHour((h) => (h + 1) % 24)}>
@@ -573,7 +585,6 @@ export default function ProfileScreen({ navigation }: any) {
 
             <Text style={styles.timePickerColon}>:</Text>
 
-            {/* Minuten */}
             <View style={styles.timePickerCol}>
               <Text style={styles.timePickerLabel}>Minuten</Text>
               <TouchableOpacity style={styles.timePickerBtn} onPress={() => setPickerMinute((m) => (m + 5) % 60)}>
@@ -601,115 +612,112 @@ export default function ProfileScreen({ navigation }: any) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8F8FF' },
-  scrollView: { flex: 1 },
-  content: { padding: 20 },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  profileSection: { alignItems: 'center', paddingVertical: 24 },
-  avatarContainer: { position: 'relative', marginBottom: 16 },
-  avatar: { width: 96, height: 96, borderRadius: 48, backgroundColor: '#6C63FF', justifyContent: 'center', alignItems: 'center' },
-  avatarImage: { width: 96, height: 96, borderRadius: 48 },
-  avatarText: { fontSize: 36, fontWeight: '700', color: '#fff' },
-  editBadge: {
-    position: 'absolute', bottom: 0, right: 0,
-    width: 28, height: 28, borderRadius: 14, backgroundColor: '#fff',
-    justifyContent: 'center', alignItems: 'center',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 4, elevation: 3,
-  },
-  editBadgeText: { fontSize: 12 },
-  usernameRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
-  usernameEditIcon: { fontSize: 14, marginLeft: 6, opacity: 0.5 },
-  username: { fontSize: 22, fontWeight: '700', color: '#1a1a2e' },
-  email: { fontSize: 14, color: '#888', marginBottom: 4 },
-  joinDate: { fontSize: 13, color: '#aaa' },
-  statsRow: { flexDirection: 'row', gap: 12, marginBottom: 24 },
-  statCard: {
-    flex: 1, backgroundColor: '#fff', borderRadius: 12, padding: 16, alignItems: 'center',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 1,
-  },
-  statValue: { fontSize: 22, fontWeight: '700', color: '#6C63FF', marginBottom: 4 },
-  statLabel: { fontSize: 12, color: '#888' },
-  section: { marginBottom: 20 },
-  sectionTitle: { fontSize: 13, fontWeight: '600', color: '#888', marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.5 },
-  menuItem: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff',
-    borderRadius: 12, padding: 16, marginBottom: 8,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 1,
-  },
-  menuItemColumn: { flexDirection: 'column', alignItems: 'flex-start' },
-  menuItemRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
-  menuIcon: { fontSize: 20, marginRight: 12 },
-  menuLabel: { flex: 1, fontSize: 15, color: '#1a1a2e' },
-  menuArrow: { fontSize: 20, color: '#ccc' },
-  menuBadge: {
-    backgroundColor: '#6C63FF', borderRadius: 10,
-    paddingHorizontal: 8, paddingVertical: 2, marginRight: 6,
-  },
-  menuBadgeText: { color: '#fff', fontSize: 12, fontWeight: '700' },
-  disabled: { opacity: 0.45 },
+function getStyles(theme: Theme) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: theme.background },
+    scrollView: { flex: 1 },
+    content: { padding: 20 },
+    center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+    profileSection: { alignItems: 'center', paddingVertical: 24 },
+    avatarContainer: { position: 'relative', marginBottom: 16 },
+    avatar: { width: 96, height: 96, borderRadius: 48, backgroundColor: theme.primary, justifyContent: 'center', alignItems: 'center' },
+    avatarImage: { width: 96, height: 96, borderRadius: 48 },
+    avatarText: { fontSize: 36, fontWeight: '700', color: '#fff' },
+    editBadge: {
+      position: 'absolute', bottom: 0, right: 0,
+      width: 28, height: 28, borderRadius: 14, backgroundColor: theme.card,
+      justifyContent: 'center', alignItems: 'center',
+      shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 4, elevation: 3,
+    },
+    editBadgeText: { fontSize: 12 },
+    usernameRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
+    usernameEditIcon: { fontSize: 14, marginLeft: 6, opacity: 0.5 },
+    username: { fontSize: 22, fontWeight: '700', color: theme.text },
+    email: { fontSize: 14, color: theme.textSecondary, marginBottom: 4 },
+    joinDate: { fontSize: 13, color: theme.textTertiary },
+    statsRow: { flexDirection: 'row', gap: 12, marginBottom: 24 },
+    statCard: {
+      flex: 1, backgroundColor: theme.card, borderRadius: 12, padding: 16, alignItems: 'center',
+      shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 1,
+    },
+    statValue: { fontSize: 22, fontWeight: '700', color: theme.primary, marginBottom: 4 },
+    statLabel: { fontSize: 12, color: theme.textSecondary },
+    section: { marginBottom: 20 },
+    sectionTitle: { fontSize: 13, fontWeight: '600', color: theme.textSecondary, marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.5 },
+    menuItem: {
+      flexDirection: 'row', alignItems: 'center', backgroundColor: theme.card,
+      borderRadius: 12, padding: 16, marginBottom: 8,
+      shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 1,
+    },
+    menuItemColumn: { flexDirection: 'column', alignItems: 'flex-start' },
+    menuItemRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
+    menuIcon: { fontSize: 20, marginRight: 12 },
+    menuLabel: { flex: 1, fontSize: 15, color: theme.text },
+    menuArrow: { fontSize: 20, color: theme.border },
+    menuBadge: {
+      backgroundColor: theme.primary, borderRadius: 10,
+      paddingHorizontal: 8, paddingVertical: 2, marginRight: 6,
+    },
+    menuBadgeText: { color: '#fff', fontSize: 12, fontWeight: '700' },
+    disabled: { opacity: 0.45 },
 
-  // Day pills
-  dayPills: { flexDirection: 'row', gap: 8 },
-  dayPill: {
-    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
-    backgroundColor: '#F0EEFF', borderWidth: 1.5, borderColor: 'transparent',
-  },
-  dayPillActive: { backgroundColor: '#6C63FF', borderColor: '#6C63FF' },
-  dayPillText: { fontSize: 13, fontWeight: '600', color: '#6C63FF' },
-  dayPillTextActive: { color: '#fff' },
+    dayPills: { flexDirection: 'row', gap: 8 },
+    dayPill: {
+      paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
+      backgroundColor: theme.primaryLight, borderWidth: 1.5, borderColor: 'transparent',
+    },
+    dayPillActive: { backgroundColor: theme.primary, borderColor: theme.primary },
+    dayPillText: { fontSize: 13, fontWeight: '600', color: theme.primary },
+    dayPillTextActive: { color: '#fff' },
 
-  // Time chip
-  timeChip: {
-    backgroundColor: '#F0EEFF', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6,
-  },
-  timeChipText: { fontSize: 14, fontWeight: '700', color: '#6C63FF' },
+    timeChip: {
+      backgroundColor: theme.primaryLight, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6,
+    },
+    timeChipText: { fontSize: 14, fontWeight: '700', color: theme.primary },
 
-  signOutBtn: {
-    borderWidth: 1.5, borderColor: '#FF4444', borderRadius: 12,
-    paddingVertical: 16, alignItems: 'center', marginTop: 8,
-  },
-  signOutText: { color: '#FF4444', fontSize: 16, fontWeight: '600' },
+    signOutBtn: {
+      borderWidth: 1.5, borderColor: theme.danger, borderRadius: 12,
+      paddingVertical: 16, alignItems: 'center', marginTop: 8,
+    },
+    signOutText: { color: theme.danger, fontSize: 16, fontWeight: '600' },
 
-  // Modals
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
-  modalCard: { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24 },
-  modalTitle: { fontSize: 18, fontWeight: '700', color: '#1a1a2e', marginBottom: 20 },
-  modalInput: {
-    borderWidth: 1.5, borderColor: '#E8E8F0', borderRadius: 12,
-    paddingHorizontal: 16, paddingVertical: 14, fontSize: 16,
-    color: '#1a1a2e', backgroundColor: '#F8F8FF', marginBottom: 16,
-  },
-  modalSaveBtn: {
-    backgroundColor: '#6C63FF', borderRadius: 12, paddingVertical: 16, alignItems: 'center', marginBottom: 8,
-  },
-  modalSaveBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
-  modalCancel: { alignItems: 'center', paddingVertical: 12 },
-  modalCancelText: { color: '#888', fontSize: 15 },
+    modalOverlay: { flex: 1, backgroundColor: theme.overlay, justifyContent: 'flex-end' },
+    modalCard: { backgroundColor: theme.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24 },
+    modalTitle: { fontSize: 18, fontWeight: '700', color: theme.text, marginBottom: 20 },
+    modalInput: {
+      borderWidth: 1.5, borderColor: theme.border, borderRadius: 12,
+      paddingHorizontal: 16, paddingVertical: 14, fontSize: 16,
+      color: theme.text, backgroundColor: theme.inputBg, marginBottom: 16,
+    },
+    modalSaveBtn: {
+      backgroundColor: theme.primary, borderRadius: 12, paddingVertical: 16, alignItems: 'center', marginBottom: 8,
+    },
+    modalSaveBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+    modalCancel: { alignItems: 'center', paddingVertical: 12 },
+    modalCancelText: { color: theme.textSecondary, fontSize: 15 },
 
-  menuSub: { fontSize: 12, color: '#aaa', marginTop: 2 },
+    menuSub: { fontSize: 12, color: theme.textTertiary, marginTop: 2 },
 
-  // Payment modal
-  paymentFieldLabel: { fontSize: 13, fontWeight: '600', color: '#555', marginBottom: 6, marginTop: 4 },
-  paymentInputRow: {
-    flexDirection: 'row', alignItems: 'center',
-    borderWidth: 1.5, borderColor: '#E8E8F0', borderRadius: 12,
-    backgroundColor: '#F8F8FF', marginBottom: 4, overflow: 'hidden',
-  },
-  paymentPrefix: { paddingHorizontal: 12, fontSize: 14, color: '#aaa' },
-  paymentInput: { flex: 1, paddingVertical: 14, paddingRight: 16, fontSize: 16, color: '#1a1a2e' },
-  paymentHint: { fontSize: 11, color: '#bbb', marginBottom: 12 },
+    paymentFieldLabel: { fontSize: 13, fontWeight: '600', color: theme.textSecondary, marginBottom: 6, marginTop: 4 },
+    paymentInputRow: {
+      flexDirection: 'row', alignItems: 'center',
+      borderWidth: 1.5, borderColor: theme.border, borderRadius: 12,
+      backgroundColor: theme.inputBg, marginBottom: 4, overflow: 'hidden',
+    },
+    paymentPrefix: { paddingHorizontal: 12, fontSize: 14, color: theme.textTertiary },
+    paymentInput: { flex: 1, paddingVertical: 14, paddingRight: 16, fontSize: 16, color: theme.text },
+    paymentHint: { fontSize: 11, color: theme.textTertiary, marginBottom: 12 },
 
-  // Time picker
-  timePickerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 28, gap: 12 },
-  timePickerCol: { alignItems: 'center', width: 90 },
-  timePickerLabel: { fontSize: 12, color: '#aaa', marginBottom: 8, fontWeight: '600' },
-  timePickerBtn: { padding: 10 },
-  timePickerArrow: { fontSize: 18, color: '#6C63FF', fontWeight: '700' },
-  timePickerValue: {
-    width: 72, height: 56, borderRadius: 12, backgroundColor: '#F0EEFF',
-    justifyContent: 'center', alignItems: 'center',
-  },
-  timePickerValueText: { fontSize: 28, fontWeight: '700', color: '#6C63FF' },
-  timePickerColon: { fontSize: 32, fontWeight: '700', color: '#1a1a2e', marginTop: 18 },
-});
+    timePickerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 28, gap: 12 },
+    timePickerCol: { alignItems: 'center', width: 90 },
+    timePickerLabel: { fontSize: 12, color: theme.textTertiary, marginBottom: 8, fontWeight: '600' },
+    timePickerBtn: { padding: 10 },
+    timePickerArrow: { fontSize: 18, color: theme.primary, fontWeight: '700' },
+    timePickerValue: {
+      width: 72, height: 56, borderRadius: 12, backgroundColor: theme.primaryLight,
+      justifyContent: 'center', alignItems: 'center',
+    },
+    timePickerValueText: { fontSize: 28, fontWeight: '700', color: theme.primary },
+    timePickerColon: { fontSize: 32, fontWeight: '700', color: theme.text, marginTop: 18 },
+  });
+}

@@ -14,6 +14,8 @@ import EmptyState from '../components/EmptyState';
 import { addFriend } from '../lib/friends';
 import { haptics } from '../lib/haptics';
 import { generateInviteCode } from '../lib/invites';
+import { useTheme } from '../lib/ThemeContext';
+import { Theme } from '../lib/theme';
 
 export default function GroupDetailScreen({ route, navigation }: any) {
   const { group }: { group: Group } = route.params;
@@ -30,25 +32,25 @@ export default function GroupDetailScreen({ route, navigation }: any) {
   const [generatingLink, setGeneratingLink] = useState(false);
   const [lastInviteCode, setLastInviteCode] = useState<string | null>(null);
 
+  const { theme } = useTheme();
+  const styles = getStyles(theme);
+
   const fetchData = async () => {
     const { data: user } = await supabase.auth.getUser();
     if (user.user) setCurrentUserId(user.user.id);
 
-    // Ausgaben laden
     const { data: expensesData } = await supabase
       .from('expenses')
       .select('*')
       .eq('group_id', group.id)
       .order('date', { ascending: false });
 
-    // Mitglieder laden
     const { data: membersData } = await supabase
       .from('group_members')
       .select('*')
       .eq('group_id', group.id);
 
     if (expensesData && membersData) {
-      // Alle beteiligten User-IDs sammeln
       const userIds = [
         ...new Set([
           ...membersData.map((m) => m.user_id),
@@ -56,7 +58,6 @@ export default function GroupDetailScreen({ route, navigation }: any) {
         ]),
       ];
 
-      // Profile in einem Query laden
       const { data: profiles } = userIds.length > 0
         ? await supabase.from('profiles').select('*').in('id', userIds)
         : { data: [] };
@@ -64,13 +65,11 @@ export default function GroupDetailScreen({ route, navigation }: any) {
       const profileMap: { [id: string]: any } = {};
       profiles?.forEach((p) => { profileMap[p.id] = p; });
 
-      // Ausgaben mit Zahler-Profil verknüpfen
       const enrichedExpenses = expensesData.map((e) => ({
         ...e,
         payer: profileMap[e.paid_by] ?? null,
       }));
 
-      // Mitglieder mit Profil verknüpfen
       const enrichedMembers = membersData.map((m) => ({
         ...m,
         profile: profileMap[m.user_id] ?? null,
@@ -86,7 +85,6 @@ export default function GroupDetailScreen({ route, navigation }: any) {
 
   useFocusEffect(useCallback(() => { fetchData(); }, []));
 
-  // Lade Freunde wenn das Invite-Modal geöffnet wird
   const openInviteModal = async () => {
     setInviteModal(true);
     const { data: userData } = await supabase.auth.getUser();
@@ -105,7 +103,6 @@ export default function GroupDetailScreen({ route, navigation }: any) {
     setFriendsForInvite(available);
   };
 
-  // Freund direkt zur Gruppe hinzufügen
   const addFriendToGroup = async (friend: any) => {
     setAddingFriendId(friend.id);
     const { error } = await supabase
@@ -124,7 +121,6 @@ export default function GroupDetailScreen({ route, navigation }: any) {
     setAddingFriendId(null);
   };
 
-  // Einladungslink generieren und teilen
   const shareInviteLink = async () => {
     const { data: userData } = await supabase.auth.getUser();
     if (!userData.user) return;
@@ -159,7 +155,6 @@ export default function GroupDetailScreen({ route, navigation }: any) {
     });
   };
 
-  // Code in Zwischenablage kopieren
   const copyInviteCode = async () => {
     if (!lastInviteCode) {
       await shareInviteLink();
@@ -175,7 +170,6 @@ export default function GroupDetailScreen({ route, navigation }: any) {
     if (!email) return;
     setInviting(true);
 
-    // Suche nach E-Mail (case-insensitive via ilike)
     const { data: profiles, error } = await supabase
       .from('profiles')
       .select('id, username, email')
@@ -208,7 +202,6 @@ export default function GroupDetailScreen({ route, navigation }: any) {
       haptics.error();
       Alert.alert('Fehler', insertError.message);
     } else {
-      // Automatisch als Freund hinzufügen
       await addFriend(profile.id);
       haptics.success();
       Alert.alert('✓ Hinzugefügt', `${profile.username} wurde zur Gruppe hinzugefügt!`);
@@ -294,7 +287,7 @@ export default function GroupDetailScreen({ route, navigation }: any) {
 
       {loading ? (
         <View style={styles.center}>
-          <ActivityIndicator size="large" color="#6C63FF" />
+          <ActivityIndicator size="large" color={theme.primary} />
         </View>
       ) : expenses.length === 0 ? (
         <EmptyState
@@ -310,7 +303,7 @@ export default function GroupDetailScreen({ route, navigation }: any) {
           keyExtractor={(item) => item.id}
           renderItem={renderExpense}
           contentContainerStyle={styles.list}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchData(); }} tintColor="#6C63FF" />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchData(); }} tintColor={theme.primary} />}
         />
       )}
 
@@ -324,7 +317,6 @@ export default function GroupDetailScreen({ route, navigation }: any) {
               <View style={styles.modalCard}>
                 <Text style={styles.modalTitle}>Mitglied einladen</Text>
 
-                {/* Freunde-Schnellauswahl */}
                 {friendsForInvite.length > 0 && (
                   <>
                     <Text style={styles.modalSectionLabel}>Freunde</Text>
@@ -346,7 +338,7 @@ export default function GroupDetailScreen({ route, navigation }: any) {
                           <Text style={styles.friendEmail}>{friend.email}</Text>
                         </View>
                         {addingFriendId === friend.id
-                          ? <ActivityIndicator color="#6C63FF" size="small" />
+                          ? <ActivityIndicator color={theme.primary} size="small" />
                           : <Text style={styles.friendAdd}>+ Hinzufügen</Text>
                         }
                       </TouchableOpacity>
@@ -359,7 +351,6 @@ export default function GroupDetailScreen({ route, navigation }: any) {
                   </>
                 )}
 
-                {/* Einladungslink */}
                 <Text style={styles.modalSectionLabel}>Einladungslink</Text>
                 <TouchableOpacity
                   style={[styles.linkBtn, generatingLink && { opacity: 0.7 }]}
@@ -368,7 +359,7 @@ export default function GroupDetailScreen({ route, navigation }: any) {
                   activeOpacity={0.8}
                 >
                   {generatingLink
-                    ? <ActivityIndicator color="#6C63FF" size="small" />
+                    ? <ActivityIndicator color={theme.primary} size="small" />
                     : <Text style={styles.linkBtnText}>🔗  Link generieren & teilen</Text>
                   }
                 </TouchableOpacity>
@@ -386,7 +377,6 @@ export default function GroupDetailScreen({ route, navigation }: any) {
                   <View style={styles.dividerLine} />
                 </View>
 
-                {/* E-Mail Fallback */}
                 {friendsForInvite.length === 0 && (
                   <Text style={styles.modalHint}>E-Mail des registrierten Benutzers</Text>
                 )}
@@ -397,7 +387,7 @@ export default function GroupDetailScreen({ route, navigation }: any) {
                   onChangeText={setInviteEmail}
                   keyboardType="email-address"
                   autoCapitalize="none"
-                  placeholderTextColor="#999"
+                  placeholderTextColor={theme.textTertiary}
                   returnKeyType="done"
                   onSubmitEditing={inviteMember}
                   autoFocus={friendsForInvite.length === 0}
@@ -417,85 +407,82 @@ export default function GroupDetailScreen({ route, navigation }: any) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8F8FF' },
-  summaryCard: {
-    backgroundColor: '#6C63FF', margin: 16, borderRadius: 16, padding: 20,
-    shadowColor: '#6C63FF', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 12, elevation: 5,
-  },
-  summaryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  summaryLabel: { fontSize: 13, color: 'rgba(255,255,255,0.7)', marginBottom: 4 },
-  summaryAmount: { fontSize: 28, fontWeight: '700', color: '#fff' },
-  membersRow: { flexDirection: 'row', alignItems: 'center' },
-  memberAvatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.3)', justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: '#6C63FF' },
-  memberAvatarText: { fontSize: 14, fontWeight: '700', color: '#fff' },
-  memberAvatarMore: { backgroundColor: 'rgba(0,0,0,0.2)' },
-  memberMoreText: { fontSize: 11, fontWeight: '700', color: '#fff' },
-  actionRow: { flexDirection: 'row', gap: 10 },
-  actionBtn: { flex: 1, backgroundColor: '#fff', paddingVertical: 10, borderRadius: 10, alignItems: 'center' },
-  actionBtnText: { color: '#6C63FF', fontWeight: '700', fontSize: 14 },
-  actionBtnOutline: { backgroundColor: 'transparent', borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.5)' },
-  actionBtnTextOutline: { color: '#fff' },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  list: { padding: 16 },
-  expenseCard: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff',
-    borderRadius: 12, padding: 14, marginBottom: 10,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 1,
-  },
-  expenseIcon: { width: 42, height: 42, borderRadius: 21, backgroundColor: '#F0EEFF', justifyContent: 'center', alignItems: 'center', marginRight: 12 },
-  expenseIconText: { fontSize: 20 },
-  expenseInfo: { flex: 1 },
-  expenseName: { fontSize: 15, fontWeight: '600', color: '#1a1a2e' },
-  expensePayer: { fontSize: 12, color: '#888', marginTop: 2 },
-  expenseAmount: { fontSize: 16, fontWeight: '700', color: '#6C63FF' },
-  expenseChevron: { fontSize: 16, color: '#ccc', marginTop: 2 },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
-  modalCard: { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24 },
-  modalTitle: { fontSize: 20, fontWeight: '700', color: '#1a1a2e', marginBottom: 12 },
-  modalHint: { fontSize: 13, color: '#888', marginBottom: 16 },
-  modalSectionLabel: { fontSize: 12, fontWeight: '700', color: '#888', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 },
-
-  // Friends quick-add
-  friendRow: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingVertical: 10, paddingHorizontal: 4,
-    borderBottomWidth: 1, borderBottomColor: '#F5F5F5',
-  },
-  friendAvatar: {
-    width: 38, height: 38, borderRadius: 19,
-    backgroundColor: '#EEF0FF',
-    justifyContent: 'center', alignItems: 'center', marginRight: 12,
-  },
-  friendAvatarText: { fontSize: 16, fontWeight: '700', color: '#6C63FF' },
-  friendName: { fontSize: 14, fontWeight: '600', color: '#1a1a2e' },
-  friendEmail: { fontSize: 12, color: '#888', marginTop: 1 },
-  friendAdd: { fontSize: 13, color: '#6C63FF', fontWeight: '600' },
-
-  modalDivider: {
-    flexDirection: 'row', alignItems: 'center',
-    marginVertical: 16, gap: 8,
-  },
-  dividerLine: { flex: 1, height: 1, backgroundColor: '#E8E8F0' },
-  dividerText: { fontSize: 12, color: '#999', fontWeight: '500' },
-
-  // Link buttons
-  linkBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1.5, borderColor: '#6C63FF', borderRadius: 12,
-    paddingVertical: 13, marginBottom: 8,
-  },
-  linkBtnText: { color: '#6C63FF', fontWeight: '700', fontSize: 14 },
-  copyCodeBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    backgroundColor: '#F0EEFF', borderRadius: 10, paddingVertical: 10, marginBottom: 8,
-  },
-  copyCodeText: { color: '#6C63FF', fontSize: 13 },
-  copyCodeValue: { color: '#6C63FF', fontWeight: '800', fontSize: 14, letterSpacing: 1 },
-  input: { borderWidth: 1.5, borderColor: '#E8E8F0', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14, fontSize: 15, color: '#1a1a2e', backgroundColor: '#FAFAFA', marginBottom: 12 },
-  button: { backgroundColor: '#6C63FF', borderRadius: 12, paddingVertical: 16, alignItems: 'center' },
-  buttonDisabled: { opacity: 0.7 },
-  buttonText: { color: '#fff', fontSize: 16, fontWeight: '700' },
-  cancelBtn: { alignItems: 'center', padding: 16 },
-  cancelText: { color: '#888', fontSize: 15 },
-});
+function getStyles(theme: Theme) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: theme.background },
+    summaryCard: {
+      backgroundColor: theme.primary, margin: 16, borderRadius: 16, padding: 20,
+      shadowColor: theme.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 12, elevation: 5,
+    },
+    summaryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+    summaryLabel: { fontSize: 13, color: 'rgba(255,255,255,0.7)', marginBottom: 4 },
+    summaryAmount: { fontSize: 28, fontWeight: '700', color: '#fff' },
+    membersRow: { flexDirection: 'row', alignItems: 'center' },
+    memberAvatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.3)', justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: theme.primary },
+    memberAvatarText: { fontSize: 14, fontWeight: '700', color: '#fff' },
+    memberAvatarMore: { backgroundColor: 'rgba(0,0,0,0.2)' },
+    memberMoreText: { fontSize: 11, fontWeight: '700', color: '#fff' },
+    actionRow: { flexDirection: 'row', gap: 10 },
+    actionBtn: { flex: 1, backgroundColor: '#fff', paddingVertical: 10, borderRadius: 10, alignItems: 'center' },
+    actionBtnText: { color: theme.primary, fontWeight: '700', fontSize: 14 },
+    actionBtnOutline: { backgroundColor: 'transparent', borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.5)' },
+    actionBtnTextOutline: { color: '#fff' },
+    center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+    list: { padding: 16 },
+    expenseCard: {
+      flexDirection: 'row', alignItems: 'center', backgroundColor: theme.card,
+      borderRadius: 12, padding: 14, marginBottom: 10,
+      shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 1,
+    },
+    expenseIcon: { width: 42, height: 42, borderRadius: 21, backgroundColor: theme.primaryLight, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
+    expenseIconText: { fontSize: 20 },
+    expenseInfo: { flex: 1 },
+    expenseName: { fontSize: 15, fontWeight: '600', color: theme.text },
+    expensePayer: { fontSize: 12, color: theme.textSecondary, marginTop: 2 },
+    expenseAmount: { fontSize: 16, fontWeight: '700', color: theme.primary },
+    expenseChevron: { fontSize: 16, color: theme.border, marginTop: 2 },
+    modalOverlay: { flex: 1, backgroundColor: theme.overlay, justifyContent: 'flex-end' },
+    modalCard: { backgroundColor: theme.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24 },
+    modalTitle: { fontSize: 20, fontWeight: '700', color: theme.text, marginBottom: 12 },
+    modalHint: { fontSize: 13, color: theme.textSecondary, marginBottom: 16 },
+    modalSectionLabel: { fontSize: 12, fontWeight: '700', color: theme.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 },
+    friendRow: {
+      flexDirection: 'row', alignItems: 'center',
+      paddingVertical: 10, paddingHorizontal: 4,
+      borderBottomWidth: 1, borderBottomColor: theme.borderLight,
+    },
+    friendAvatar: {
+      width: 38, height: 38, borderRadius: 19,
+      backgroundColor: theme.primaryLight,
+      justifyContent: 'center', alignItems: 'center', marginRight: 12,
+    },
+    friendAvatarText: { fontSize: 16, fontWeight: '700', color: theme.primary },
+    friendName: { fontSize: 14, fontWeight: '600', color: theme.text },
+    friendEmail: { fontSize: 12, color: theme.textSecondary, marginTop: 1 },
+    friendAdd: { fontSize: 13, color: theme.primary, fontWeight: '600' },
+    modalDivider: {
+      flexDirection: 'row', alignItems: 'center',
+      marginVertical: 16, gap: 8,
+    },
+    dividerLine: { flex: 1, height: 1, backgroundColor: theme.border },
+    dividerText: { fontSize: 12, color: theme.textTertiary, fontWeight: '500' },
+    linkBtn: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+      borderWidth: 1.5, borderColor: theme.primary, borderRadius: 12,
+      paddingVertical: 13, marginBottom: 8,
+    },
+    linkBtnText: { color: theme.primary, fontWeight: '700', fontSize: 14 },
+    copyCodeBtn: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+      backgroundColor: theme.primaryLight, borderRadius: 10, paddingVertical: 10, marginBottom: 8,
+    },
+    copyCodeText: { color: theme.primary, fontSize: 13 },
+    copyCodeValue: { color: theme.primary, fontWeight: '800', fontSize: 14, letterSpacing: 1 },
+    input: { borderWidth: 1.5, borderColor: theme.border, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14, fontSize: 15, color: theme.text, backgroundColor: theme.inputBg, marginBottom: 12 },
+    button: { backgroundColor: theme.primary, borderRadius: 12, paddingVertical: 16, alignItems: 'center' },
+    buttonDisabled: { opacity: 0.7 },
+    buttonText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+    cancelBtn: { alignItems: 'center', padding: 16 },
+    cancelText: { color: theme.textSecondary, fontSize: 15 },
+  });
+}

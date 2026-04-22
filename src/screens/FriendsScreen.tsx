@@ -11,6 +11,8 @@ import { supabase } from '../lib/supabase';
 import { addFriend, removeFriend } from '../lib/friends';
 import { haptics } from '../lib/haptics';
 import EmptyState from '../components/EmptyState';
+import { useTheme } from '../lib/ThemeContext';
+import { Theme } from '../lib/theme';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -41,9 +43,10 @@ function statusLabel(sharedGroups: number): string {
 type SwipeableFriendRowProps = {
   friend: Friend;
   onDelete: (id: string) => void;
+  styles: ReturnType<typeof getStyles>;
 };
 
-function SwipeableFriendRow({ friend, onDelete }: SwipeableFriendRowProps) {
+function SwipeableFriendRow({ friend, onDelete, styles }: SwipeableFriendRowProps) {
   const translateX = useRef(new Animated.Value(0)).current;
   const ACTION_WIDTH = 80;
   const THRESHOLD = -50;
@@ -127,6 +130,9 @@ export default function FriendsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [currentUserId, setCurrentUserId] = useState('');
+
+  const { theme } = useTheme();
+  const styles = getStyles(theme);
 
   // Add modal state
   const [addModal, setAddModal] = useState(false);
@@ -263,7 +269,7 @@ export default function FriendsScreen() {
   // ── Render ──────────────────────────────────────────────────────────────────
 
   const renderItem = ({ item }: { item: Friend }) => (
-    <SwipeableFriendRow friend={item} onDelete={handleRemoveFriend} />
+    <SwipeableFriendRow friend={item} onDelete={handleRemoveFriend} styles={styles} />
   );
 
   return (
@@ -290,7 +296,7 @@ export default function FriendsScreen() {
 
       {loading ? (
         <View style={styles.center}>
-          <ActivityIndicator size="large" color="#6C63FF" />
+          <ActivityIndicator size="large" color={theme.primary} />
         </View>
       ) : friends.length === 0 ? (
         <EmptyState
@@ -310,7 +316,7 @@ export default function FriendsScreen() {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={() => { setRefreshing(true); fetchFriends(); }}
-              tintColor="#6C63FF"
+              tintColor={theme.primary}
             />
           }
         />
@@ -402,132 +408,129 @@ export default function FriendsScreen() {
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8F8FF' },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  list: { paddingVertical: 8, paddingBottom: 100 },
+function getStyles(theme: Theme) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: theme.background },
+    center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+    list: { paddingVertical: 8, paddingBottom: 100 },
 
-  statsBar: {
-    flexDirection: 'row',
-    backgroundColor: '#fff',
-    marginHorizontal: 16,
-    marginTop: 12,
-    marginBottom: 4,
-    borderRadius: 16,
-    padding: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  stat: { flex: 1, alignItems: 'center' },
-  statValue: { fontSize: 22, fontWeight: '700', color: '#6C63FF' },
-  statLabel: { fontSize: 11, color: '#888', marginTop: 2 },
-  statDivider: { width: 1, backgroundColor: '#F0F0F0' },
+    statsBar: {
+      flexDirection: 'row',
+      backgroundColor: theme.card,
+      marginHorizontal: 16,
+      marginTop: 12,
+      marginBottom: 4,
+      borderRadius: 16,
+      padding: 16,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.05,
+      shadowRadius: 8,
+      elevation: 2,
+    },
+    stat: { flex: 1, alignItems: 'center' },
+    statValue: { fontSize: 22, fontWeight: '700', color: theme.primary },
+    statLabel: { fontSize: 11, color: theme.textSecondary, marginTop: 2 },
+    statDivider: { width: 1, backgroundColor: theme.borderLight },
 
-  // Swipe layout
-  swipeContainer: {
-    marginHorizontal: 16,
-    marginVertical: 5,
-    borderRadius: 14,
-    overflow: 'hidden',
-  },
-  deleteAction: {
-    position: 'absolute', right: 0, top: 0, bottom: 0, width: 80,
-    backgroundColor: '#FF3B30', justifyContent: 'center', alignItems: 'center',
-  },
-  deleteActionIcon: { fontSize: 18, marginBottom: 2 },
-  deleteActionLabel: { color: '#fff', fontSize: 10, fontWeight: '700' },
+    swipeContainer: {
+      marginHorizontal: 16,
+      marginVertical: 5,
+      borderRadius: 14,
+      overflow: 'hidden',
+    },
+    deleteAction: {
+      position: 'absolute', right: 0, top: 0, bottom: 0, width: 80,
+      backgroundColor: '#FF3B30', justifyContent: 'center', alignItems: 'center',
+    },
+    deleteActionIcon: { fontSize: 18, marginBottom: 2 },
+    deleteActionLabel: { color: '#fff', fontSize: 10, fontWeight: '700' },
 
-  // Friend card
-  friendCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    borderRadius: 14,
-    padding: 14,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  avatarWrapper: { position: 'relative', marginRight: 14 },
-  avatar: {
-    width: 50, height: 50, borderRadius: 25,
-    backgroundColor: '#EEF0FF',
-    justifyContent: 'center', alignItems: 'center',
-  },
-  avatarText: { fontSize: 20, fontWeight: '700', color: '#6C63FF' },
-  statusDot: {
-    position: 'absolute', bottom: 1, right: 1,
-    width: 13, height: 13, borderRadius: 6.5,
-    borderWidth: 2, borderColor: '#fff',
-  },
-  friendInfo: { flex: 1 },
-  friendName: { fontSize: 16, fontWeight: '600', color: '#1a1a2e' },
-  friendEmail: { fontSize: 12, color: '#888', marginTop: 2 },
-  sharedGroups: { fontSize: 12, color: '#6C63FF', marginTop: 3, fontWeight: '500' },
+    friendCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: theme.card,
+      borderRadius: 14,
+      padding: 14,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.05,
+      shadowRadius: 8,
+      elevation: 2,
+    },
+    avatarWrapper: { position: 'relative', marginRight: 14 },
+    avatar: {
+      width: 50, height: 50, borderRadius: 25,
+      backgroundColor: theme.primaryLight,
+      justifyContent: 'center', alignItems: 'center',
+    },
+    avatarText: { fontSize: 20, fontWeight: '700', color: theme.primary },
+    statusDot: {
+      position: 'absolute', bottom: 1, right: 1,
+      width: 13, height: 13, borderRadius: 6.5,
+      borderWidth: 2, borderColor: theme.card,
+    },
+    friendInfo: { flex: 1 },
+    friendName: { fontSize: 16, fontWeight: '600', color: theme.text },
+    friendEmail: { fontSize: 12, color: theme.textSecondary, marginTop: 2 },
+    sharedGroups: { fontSize: 12, color: theme.primary, marginTop: 3, fontWeight: '500' },
 
-  // FAB
-  fab: {
-    position: 'absolute', bottom: 28, right: 24,
-    width: 56, height: 56, borderRadius: 28,
-    backgroundColor: '#6C63FF',
-    justifyContent: 'center', alignItems: 'center',
-    shadowColor: '#6C63FF', shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4, shadowRadius: 10, elevation: 6,
-  },
-  fabText: { fontSize: 28, color: '#fff', lineHeight: 32 },
+    fab: {
+      position: 'absolute', bottom: 28, right: 24,
+      width: 56, height: 56, borderRadius: 28,
+      backgroundColor: theme.primary,
+      justifyContent: 'center', alignItems: 'center',
+      shadowColor: theme.primary, shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.4, shadowRadius: 10, elevation: 6,
+    },
+    fabText: { fontSize: 28, color: '#fff', lineHeight: 32 },
 
-  // Modal
-  modalOverlay: {
-    flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end',
-  },
-  modalCard: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 24, borderTopRightRadius: 24,
-    padding: 24, paddingBottom: 36,
-  },
-  modalTitle: { fontSize: 20, fontWeight: '700', color: '#1a1a2e', marginBottom: 4 },
-  modalHint: { fontSize: 13, color: '#888', marginBottom: 16 },
+    modalOverlay: {
+      flex: 1, backgroundColor: theme.overlay, justifyContent: 'flex-end',
+    },
+    modalCard: {
+      backgroundColor: theme.card,
+      borderTopLeftRadius: 24, borderTopRightRadius: 24,
+      padding: 24, paddingBottom: 36,
+    },
+    modalTitle: { fontSize: 20, fontWeight: '700', color: theme.text, marginBottom: 4 },
+    modalHint: { fontSize: 13, color: theme.textSecondary, marginBottom: 16 },
 
-  searchRow: { flexDirection: 'row', gap: 10, marginBottom: 16 },
-  searchInput: {
-    flex: 1,
-    borderWidth: 1.5, borderColor: '#E8E8F0', borderRadius: 12,
-    paddingHorizontal: 14, paddingVertical: 13,
-    fontSize: 15, color: '#1a1a2e', backgroundColor: '#FAFAFA',
-  },
-  searchBtn: {
-    backgroundColor: '#6C63FF', borderRadius: 12,
-    paddingHorizontal: 16, justifyContent: 'center',
-  },
-  searchBtnDisabled: { opacity: 0.7 },
-  searchBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+    searchRow: { flexDirection: 'row', gap: 10, marginBottom: 16 },
+    searchInput: {
+      flex: 1,
+      borderWidth: 1.5, borderColor: theme.border, borderRadius: 12,
+      paddingHorizontal: 14, paddingVertical: 13,
+      fontSize: 15, color: theme.text, backgroundColor: theme.inputBg,
+    },
+    searchBtn: {
+      backgroundColor: theme.primary, borderRadius: 12,
+      paddingHorizontal: 16, justifyContent: 'center',
+    },
+    searchBtnDisabled: { opacity: 0.7 },
+    searchBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
 
-  // Result card
-  resultCard: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: '#F0EEFF', borderRadius: 12,
-    padding: 14, marginBottom: 16,
-  },
-  resultAvatar: {
-    width: 44, height: 44, borderRadius: 22,
-    backgroundColor: '#6C63FF',
-    justifyContent: 'center', alignItems: 'center', marginRight: 12,
-  },
-  resultAvatarText: { color: '#fff', fontWeight: '700', fontSize: 18 },
-  resultInfo: { flex: 1 },
-  resultName: { fontSize: 15, fontWeight: '600', color: '#1a1a2e' },
-  resultEmail: { fontSize: 12, color: '#888', marginTop: 1 },
-  addBtn: {
-    backgroundColor: '#6C63FF', borderRadius: 10,
-    paddingHorizontal: 14, paddingVertical: 10,
-  },
-  addBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
+    resultCard: {
+      flexDirection: 'row', alignItems: 'center',
+      backgroundColor: theme.primaryLight, borderRadius: 12,
+      padding: 14, marginBottom: 16,
+    },
+    resultAvatar: {
+      width: 44, height: 44, borderRadius: 22,
+      backgroundColor: theme.primary,
+      justifyContent: 'center', alignItems: 'center', marginRight: 12,
+    },
+    resultAvatarText: { color: '#fff', fontWeight: '700', fontSize: 18 },
+    resultInfo: { flex: 1 },
+    resultName: { fontSize: 15, fontWeight: '600', color: theme.text },
+    resultEmail: { fontSize: 12, color: theme.textSecondary, marginTop: 1 },
+    addBtn: {
+      backgroundColor: theme.primary, borderRadius: 10,
+      paddingHorizontal: 14, paddingVertical: 10,
+    },
+    addBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
 
-  cancelBtn: { alignItems: 'center', paddingVertical: 14 },
-  cancelText: { color: '#888', fontSize: 15 },
-});
+    cancelBtn: { alignItems: 'center', paddingVertical: 14 },
+    cancelText: { color: theme.textSecondary, fontSize: 15 },
+  });
+}

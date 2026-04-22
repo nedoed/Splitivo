@@ -24,6 +24,8 @@ import { haptics } from '../lib/haptics';
 import { Group } from '../types';
 import EmptyState from '../components/EmptyState';
 import { joinGroupWithCode } from '../lib/invites';
+import { useTheme } from '../lib/ThemeContext';
+import { Theme } from '../lib/theme';
 
 // ─── Swipeable Card ────────────────────────────────────────────────────────────
 
@@ -42,6 +44,8 @@ function SwipeableGroupCard({
   onDelete,
   onLeave,
 }: SwipeableGroupCardProps) {
+  const { theme } = useTheme();
+  const styles = getStyles(theme);
   const translateX = useRef(new Animated.Value(0)).current;
   const isCreator = group.created_by === currentUserId;
   const ACTION_WIDTH = 80;
@@ -105,7 +109,6 @@ function SwipeableGroupCard({
 
   return (
     <View style={styles.swipeContainer}>
-      {/* Aktion-Button dahinter */}
       <TouchableOpacity
         style={[styles.actionBtn, isCreator ? styles.actionDelete : styles.actionLeave]}
         onPress={handleAction}
@@ -115,7 +118,6 @@ function SwipeableGroupCard({
         <Text style={styles.actionLabel}>{isCreator ? 'Löschen' : 'Verlassen'}</Text>
       </TouchableOpacity>
 
-      {/* Karte darüber */}
       <Animated.View
         style={[styles.groupCard, { transform: [{ translateX }] }]}
         {...panResponder.panHandlers}
@@ -156,10 +158,12 @@ export default function GroupsScreen({ navigation }: any) {
   const [currentUserId, setCurrentUserId] = useState('');
   const descRef = useRef<TextInput>(null);
 
-  // Per Code beitreten
   const [codeModal, setCodeModal] = useState(false);
   const [joinCode, setJoinCode] = useState('');
   const [joining, setJoining] = useState(false);
+
+  const { theme } = useTheme();
+  const styles = getStyles(theme);
 
   const fetchGroups = async () => {
     const { data: sessionData } = await supabase.auth.getSession();
@@ -307,7 +311,7 @@ export default function GroupsScreen({ navigation }: any) {
 
       {loading ? (
         <View style={styles.center}>
-          <ActivityIndicator size="large" color="#6C63FF" />
+          <ActivityIndicator size="large" color={theme.primary} />
         </View>
       ) : groups.length === 0 ? (
         <EmptyState
@@ -327,7 +331,7 @@ export default function GroupsScreen({ navigation }: any) {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={() => { setRefreshing(true); fetchGroups(); }}
-              tintColor="#6C63FF"
+              tintColor={theme.primary}
             />
           }
         />
@@ -340,7 +344,7 @@ export default function GroupsScreen({ navigation }: any) {
             <View style={styles.modalOverlay}>
               <View style={styles.modalCard}>
                 <Text style={styles.modalTitle}>Per Code beitreten</Text>
-                <Text style={{ fontSize: 13, color: '#888', marginBottom: 16 }}>
+                <Text style={{ fontSize: 13, color: theme.textSecondary, marginBottom: 16 }}>
                   Gib den 8-stelligen Einladungscode ein
                 </Text>
                 <TextInput
@@ -350,7 +354,7 @@ export default function GroupsScreen({ navigation }: any) {
                   onChangeText={(t) => setJoinCode(t.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
                   autoCapitalize="characters"
                   maxLength={8}
-                  placeholderTextColor="#ccc"
+                  placeholderTextColor={theme.border}
                   returnKeyType="done"
                   onSubmitEditing={handleJoinWithCode}
                   autoFocus
@@ -391,7 +395,7 @@ export default function GroupsScreen({ navigation }: any) {
                   placeholder="Gruppenname (z.B. WG Berlin)"
                   value={groupName}
                   onChangeText={setGroupName}
-                  placeholderTextColor="#999"
+                  placeholderTextColor={theme.textTertiary}
                   returnKeyType="next"
                   onSubmitEditing={() => descRef.current?.focus()}
                   blurOnSubmit={false}
@@ -403,7 +407,7 @@ export default function GroupsScreen({ navigation }: any) {
                   placeholder="Beschreibung (optional)"
                   value={groupDesc}
                   onChangeText={setGroupDesc}
-                  placeholderTextColor="#999"
+                  placeholderTextColor={theme.textTertiary}
                   returnKeyType="done"
                   onSubmitEditing={createGroup}
                 />
@@ -429,69 +433,68 @@ export default function GroupsScreen({ navigation }: any) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8F8FF' },
-  header: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingLeft: 20, paddingRight: 20, paddingVertical: 12,
-  },
-  title: { fontSize: 24, fontWeight: '700', color: '#1a1a2e' },
-  addBtn: { backgroundColor: '#6C63FF', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, marginRight: 4 },
-  addBtnText: { color: '#fff', fontWeight: '600', fontSize: 14 },
-  codeBtn: { borderWidth: 1.5, borderColor: '#6C63FF', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20 },
-  codeBtnText: { color: '#6C63FF', fontWeight: '600', fontSize: 14 },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  list: { paddingVertical: 8 },
+function getStyles(theme: Theme) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: theme.background },
+    header: {
+      flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+      paddingLeft: 20, paddingRight: 20, paddingVertical: 12,
+    },
+    title: { fontSize: 24, fontWeight: '700', color: theme.text },
+    addBtn: { backgroundColor: theme.primary, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, marginRight: 4 },
+    addBtnText: { color: '#fff', fontWeight: '600', fontSize: 14 },
+    codeBtn: { borderWidth: 1.5, borderColor: theme.primary, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20 },
+    codeBtnText: { color: theme.primary, fontWeight: '600', fontSize: 14 },
+    center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+    list: { paddingVertical: 8 },
 
-  // Swipeable layout
-  swipeContainer: {
-    marginHorizontal: 16, marginVertical: 6,
-    borderRadius: 12, overflow: 'hidden',
-  },
-  actionBtn: {
-    position: 'absolute', right: 0, top: 0, bottom: 0,
-    width: 80, justifyContent: 'center', alignItems: 'center',
-  },
-  actionDelete: { backgroundColor: '#FF3B30' },
-  actionLeave: { backgroundColor: '#FF9500' },
-  actionIcon: { fontSize: 20, marginBottom: 4 },
-  actionLabel: { color: '#fff', fontSize: 11, fontWeight: '700' },
+    swipeContainer: {
+      marginHorizontal: 16, marginVertical: 6,
+      borderRadius: 12, overflow: 'hidden',
+    },
+    actionBtn: {
+      position: 'absolute', right: 0, top: 0, bottom: 0,
+      width: 80, justifyContent: 'center', alignItems: 'center',
+    },
+    actionDelete: { backgroundColor: '#FF3B30' },
+    actionLeave: { backgroundColor: '#FF9500' },
+    actionIcon: { fontSize: 20, marginBottom: 4 },
+    actionLabel: { color: '#fff', fontSize: 11, fontWeight: '700' },
 
-  // Card
-  groupCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06, shadowRadius: 8, elevation: 2,
-  },
-  groupCardInner: {
-    flexDirection: 'row', alignItems: 'center', padding: 16,
-  },
-  groupIcon: {
-    width: 48, height: 48, borderRadius: 24, backgroundColor: '#EEF0FF',
-    justifyContent: 'center', alignItems: 'center', marginRight: 14,
-  },
-  groupIconText: { fontSize: 20, fontWeight: '700', color: '#6C63FF' },
-  groupInfo: { flex: 1 },
-  groupName: { fontSize: 16, fontWeight: '600', color: '#1a1a2e' },
-  groupDesc: { fontSize: 13, color: '#888', marginTop: 2 },
-  arrow: { fontSize: 22, color: '#ccc' },
+    groupCard: {
+      backgroundColor: theme.card,
+      borderRadius: 12,
+      shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.06, shadowRadius: 8, elevation: 2,
+    },
+    groupCardInner: {
+      flexDirection: 'row', alignItems: 'center', padding: 16,
+    },
+    groupIcon: {
+      width: 48, height: 48, borderRadius: 24, backgroundColor: theme.primaryLight,
+      justifyContent: 'center', alignItems: 'center', marginRight: 14,
+    },
+    groupIconText: { fontSize: 20, fontWeight: '700', color: theme.primary },
+    groupInfo: { flex: 1 },
+    groupName: { fontSize: 16, fontWeight: '600', color: theme.text },
+    groupDesc: { fontSize: 13, color: theme.textSecondary, marginTop: 2 },
+    arrow: { fontSize: 22, color: theme.border },
 
-
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
-  modalCard: { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24 },
-  modalTitle: { fontSize: 20, fontWeight: '700', color: '#1a1a2e', marginBottom: 20 },
-  input: {
-    borderWidth: 1.5, borderColor: '#E8E8F0', borderRadius: 12,
-    paddingHorizontal: 16, paddingVertical: 14, fontSize: 15,
-    color: '#1a1a2e', backgroundColor: '#FAFAFA', marginBottom: 12,
-  },
-  button: {
-    backgroundColor: '#6C63FF', borderRadius: 12,
-    paddingVertical: 16, alignItems: 'center', marginTop: 4,
-  },
-  buttonDisabled: { opacity: 0.7 },
-  buttonText: { color: '#fff', fontSize: 16, fontWeight: '700' },
-  cancelBtn: { alignItems: 'center', padding: 16 },
-  cancelText: { color: '#888', fontSize: 15 },
-});
+    modalOverlay: { flex: 1, backgroundColor: theme.overlay, justifyContent: 'flex-end' },
+    modalCard: { backgroundColor: theme.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24 },
+    modalTitle: { fontSize: 20, fontWeight: '700', color: theme.text, marginBottom: 20 },
+    input: {
+      borderWidth: 1.5, borderColor: theme.border, borderRadius: 12,
+      paddingHorizontal: 16, paddingVertical: 14, fontSize: 15,
+      color: theme.text, backgroundColor: theme.inputBg, marginBottom: 12,
+    },
+    button: {
+      backgroundColor: theme.primary, borderRadius: 12,
+      paddingVertical: 16, alignItems: 'center', marginTop: 4,
+    },
+    buttonDisabled: { opacity: 0.7 },
+    buttonText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+    cancelBtn: { alignItems: 'center', padding: 16 },
+    cancelText: { color: theme.textSecondary, fontSize: 15 },
+  });
+}

@@ -9,6 +9,8 @@ import { supabase } from '../lib/supabase';
 import { notifyGroupMembers } from '../lib/notifications';
 import { haptics } from '../lib/haptics';
 import { GroupMember } from '../types';
+import { useTheme } from '../lib/ThemeContext';
+import { Theme } from '../lib/theme';
 
 // base64 → Uint8Array
 function decode(base64: string): Uint8Array {
@@ -69,6 +71,9 @@ export default function ReceiptSplitScreen({ route, navigation }: any) {
   const [newItemName, setNewItemName] = useState('');
   const [newItemPrice, setNewItemPrice] = useState('');
   const [newItemQuantity, setNewItemQuantity] = useState('1');
+
+  const { theme } = useTheme();
+  const styles = getStyles(theme);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
@@ -368,7 +373,7 @@ export default function ReceiptSplitScreen({ route, navigation }: any) {
               style={[styles.modalItem, activeItem?.assignedTo === 'all' && styles.modalItemActive]}
               onPress={() => { assignItem(itemPickerIndex, 'all'); setItemPickerVisible(false); }}
             >
-              <View style={[styles.modalAvatar, { backgroundColor: '#6C63FF' }]}>
+              <View style={[styles.modalAvatar, { backgroundColor: theme.primary }]}>
                 <Text style={styles.modalAvatarText}>👥</Text>
               </View>
               <Text style={[styles.modalItemText, activeItem?.assignedTo === 'all' && styles.modalItemTextActive]}>
@@ -491,125 +496,128 @@ export default function ReceiptSplitScreen({ route, navigation }: any) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8F8FF' },
+function getStyles(theme: Theme) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: theme.background },
 
-  headerCard: {
-    backgroundColor: '#6C63FF', margin: 16, borderRadius: 16, padding: 20,
-    shadowColor: '#6C63FF', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 12, elevation: 5,
-  },
-  headerTitle: { fontSize: 18, fontWeight: '700', color: '#fff', marginBottom: 4 },
-  headerAmount: { fontSize: 32, fontWeight: '800', color: '#fff', marginBottom: 4 },
-  headerSub: { fontSize: 13, color: 'rgba(255,255,255,0.7)' },
+    headerCard: {
+      backgroundColor: theme.primary, margin: 16, borderRadius: 16, padding: 20,
+      shadowColor: theme.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 12, elevation: 5,
+    },
+    headerTitle: { fontSize: 18, fontWeight: '700', color: '#fff', marginBottom: 4 },
+    headerAmount: { fontSize: 32, fontWeight: '800', color: '#fff', marginBottom: 4 },
+    headerSub: { fontSize: 13, color: 'rgba(255,255,255,0.7)' },
 
-  scroll: { flex: 1 },
-  scrollContent: { paddingHorizontal: 16, paddingBottom: 40 },
+    scroll: { flex: 1 },
+    scrollContent: { paddingHorizontal: 16, paddingBottom: 40 },
 
-  sectionTitle: {
-    fontSize: 11, fontWeight: '700', color: '#999', letterSpacing: 1,
-    marginBottom: 10, marginTop: 4,
-  },
+    sectionTitle: {
+      fontSize: 11, fontWeight: '700', color: theme.textTertiary, letterSpacing: 1,
+      marginBottom: 10, marginTop: 4,
+    },
 
-  itemCard: {
-    backgroundColor: '#fff', borderRadius: 14, padding: 14, marginBottom: 10,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 6, elevation: 1,
-  },
-  itemRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 },
-  itemInfo: { flex: 1, paddingRight: 12 },
-  itemName: { fontSize: 15, fontWeight: '600', color: '#1a1a2e' },
-  itemQty: { fontSize: 12, color: '#888', marginTop: 2 },
-  itemTotal: { fontSize: 16, fontWeight: '700', color: '#1a1a2e' },
-  priceInputWrapper: { flexDirection: 'row', alignItems: 'center' },
-  priceInput: {
-    borderWidth: 1.5, borderColor: '#6C63FF', borderRadius: 8,
-    paddingHorizontal: 8, paddingVertical: 4,
-    width: 72, textAlign: 'right', fontSize: 15, fontWeight: '700',
-    color: '#1a1a2e', backgroundColor: '#F8F8FF',
-  },
-  priceCurrency: { fontSize: 12, color: '#888', marginLeft: 4, fontWeight: '600' },
-  priceHint: { fontSize: 11, color: '#aaa', textAlign: 'center', marginTop: 2, marginBottom: 8 },
+    itemCard: {
+      backgroundColor: theme.card, borderRadius: 14, padding: 14, marginBottom: 10,
+      shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 6, elevation: 1,
+    },
+    itemRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 },
+    itemInfo: { flex: 1, paddingRight: 12 },
+    itemName: { fontSize: 15, fontWeight: '600', color: theme.text },
+    itemQty: { fontSize: 12, color: theme.textSecondary, marginTop: 2 },
+    itemTotal: { fontSize: 16, fontWeight: '700', color: theme.text },
+    priceInputWrapper: { flexDirection: 'row', alignItems: 'center' },
+    priceInput: {
+      borderWidth: 1.5, borderColor: theme.primary, borderRadius: 8,
+      paddingHorizontal: 8, paddingVertical: 4,
+      width: 72, textAlign: 'right', fontSize: 15, fontWeight: '700',
+      color: theme.text, backgroundColor: theme.inputBg,
+    },
+    priceCurrency: { fontSize: 12, color: theme.textSecondary, marginLeft: 4, fontWeight: '600' },
+    priceHint: { fontSize: 11, color: theme.textTertiary, textAlign: 'center', marginTop: 2, marginBottom: 8 },
 
-  assignPicker: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: '#F0EEFF', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9,
-  },
-  assignLabel: { fontSize: 12, color: '#888', marginRight: 6 },
-  assignValue: { flex: 1, fontSize: 13, fontWeight: '600', color: '#6C63FF' },
-  assignArrow: { fontSize: 13, color: '#6C63FF' },
+    assignPicker: {
+      flexDirection: 'row', alignItems: 'center',
+      backgroundColor: theme.primaryLight, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9,
+    },
+    assignLabel: { fontSize: 12, color: theme.textSecondary, marginRight: 6 },
+    assignValue: { flex: 1, fontSize: 13, fontWeight: '600', color: theme.primary },
+    assignArrow: { fontSize: 13, color: theme.primary },
 
-  summaryCard: {
-    backgroundColor: '#fff', borderRadius: 14, padding: 16, marginBottom: 12,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 6, elevation: 1,
-  },
-  summaryRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8 },
-  summaryAvatar: {
-    width: 34, height: 34, borderRadius: 17, backgroundColor: '#6C63FF',
-    justifyContent: 'center', alignItems: 'center', marginRight: 12,
-  },
-  summaryAvatarText: { fontSize: 14, fontWeight: '700', color: '#fff' },
-  summaryName: { flex: 1, fontSize: 15, color: '#1a1a2e', fontWeight: '500' },
-  summaryAmount: { fontSize: 16, fontWeight: '700', color: '#ccc' },
-  summaryAmountActive: { color: '#6C63FF' },
+    summaryCard: {
+      backgroundColor: theme.card, borderRadius: 14, padding: 16, marginBottom: 12,
+      shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 6, elevation: 1,
+    },
+    summaryRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8 },
+    summaryAvatar: {
+      width: 34, height: 34, borderRadius: 17, backgroundColor: theme.primary,
+      justifyContent: 'center', alignItems: 'center', marginRight: 12,
+    },
+    summaryAvatarText: { fontSize: 14, fontWeight: '700', color: '#fff' },
+    summaryName: { flex: 1, fontSize: 15, color: theme.text, fontWeight: '500' },
+    summaryAmount: { fontSize: 16, fontWeight: '700', color: theme.border },
+    summaryAmountActive: { color: theme.primary },
 
-  paidByBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    backgroundColor: '#fff', borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14,
-    marginBottom: 20,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 6, elevation: 1,
-  },
-  paidByText: { fontSize: 15, color: '#1a1a2e', fontWeight: '500' },
+    paidByBtn: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+      backgroundColor: theme.card, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14,
+      marginBottom: 20,
+      shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 6, elevation: 1,
+    },
+    paidByText: { fontSize: 15, color: theme.text, fontWeight: '500' },
 
-  saveBtn: {
-    backgroundColor: '#6C63FF', borderRadius: 14, paddingVertical: 17, alignItems: 'center',
-    shadowColor: '#6C63FF', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3,
-    shadowRadius: 8, elevation: 4,
-  },
-  saveBtnDisabled: { opacity: 0.7 },
-  saveBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+    saveBtn: {
+      backgroundColor: theme.primary, borderRadius: 14, paddingVertical: 17, alignItems: 'center',
+      shadowColor: theme.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3,
+      shadowRadius: 8, elevation: 4,
+    },
+    saveBtnDisabled: { opacity: 0.7 },
+    saveBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
 
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
-  modalCard: { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24 },
-  modalTitle: { fontSize: 18, fontWeight: '700', color: '#1a1a2e', marginBottom: 16 },
-  modalItem: {
-    flexDirection: 'row', alignItems: 'center', paddingVertical: 12,
-    paddingHorizontal: 8, borderRadius: 12, marginBottom: 4,
-  },
-  modalItemActive: { backgroundColor: '#EEF0FF' },
-  modalAvatar: {
-    width: 36, height: 36, borderRadius: 18, backgroundColor: '#ddd',
-    justifyContent: 'center', alignItems: 'center', marginRight: 12,
-  },
-  modalAvatarActive: { backgroundColor: '#6C63FF' },
-  modalAvatarText: { fontSize: 14, fontWeight: '700', color: '#fff' },
-  modalItemText: { flex: 1, fontSize: 15, color: '#1a1a2e' },
-  modalItemTextActive: { color: '#6C63FF', fontWeight: '600' },
-  modalCheck: { color: '#6C63FF', fontWeight: '700', fontSize: 16 },
-  modalCancel: { alignItems: 'center', paddingVertical: 16, marginTop: 8 },
-  modalCancelText: { color: '#888', fontSize: 15 },
+    modalOverlay: { flex: 1, backgroundColor: theme.overlay, justifyContent: 'flex-end' },
+    modalCard: { backgroundColor: theme.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24 },
+    modalTitle: { fontSize: 18, fontWeight: '700', color: theme.text, marginBottom: 16 },
+    modalItem: {
+      flexDirection: 'row', alignItems: 'center', paddingVertical: 12,
+      paddingHorizontal: 8, borderRadius: 12, marginBottom: 4,
+    },
+    modalItemActive: { backgroundColor: theme.primaryLight },
+    modalAvatar: {
+      width: 36, height: 36, borderRadius: 18, backgroundColor: theme.border,
+      justifyContent: 'center', alignItems: 'center', marginRight: 12,
+    },
+    modalAvatarActive: { backgroundColor: theme.primary },
+    modalAvatarText: { fontSize: 14, fontWeight: '700', color: '#fff' },
+    modalItemText: { flex: 1, fontSize: 15, color: theme.text },
+    modalItemTextActive: { color: theme.primary, fontWeight: '600' },
+    modalCheck: { color: theme.primary, fontWeight: '700', fontSize: 16 },
+    modalCancel: { alignItems: 'center', paddingVertical: 16, marginTop: 8 },
+    modalCancelText: { color: theme.textSecondary, fontSize: 15 },
 
-  deleteBtn: { padding: 6, marginLeft: 6, justifyContent: 'center' },
-  deleteBtnText: { color: '#FF3B30', fontSize: 16, fontWeight: '600' },
+    deleteBtn: { padding: 6, marginLeft: 6, justifyContent: 'center' },
+    deleteBtnText: { color: '#FF3B30', fontSize: 16, fontWeight: '600' },
 
-  addItemBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    padding: 12, marginTop: 4, marginBottom: 8,
-    borderWidth: 1.5, borderColor: '#6C63FF', borderStyle: 'dashed', borderRadius: 12,
-    gap: 8,
-  },
-  addItemPlus: { fontSize: 20, color: '#6C63FF', lineHeight: 22 },
-  addItemText: { color: '#6C63FF', fontWeight: '500', fontSize: 15 },
+    addItemBtn: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+      padding: 12, marginTop: 4, marginBottom: 8,
+      borderWidth: 1.5, borderColor: theme.primary, borderStyle: 'dashed', borderRadius: 12,
+      gap: 8,
+    },
+    addItemPlus: { fontSize: 20, color: theme.primary, lineHeight: 22 },
+    addItemText: { color: theme.primary, fontWeight: '500', fontSize: 15 },
 
-  addModalCard: {
-    backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20,
-    padding: 24, paddingBottom: 40,
-  },
-  addModalLabel: { fontSize: 13, color: 'gray', marginBottom: 6 },
-  addModalInput: {
-    borderWidth: 1, borderColor: '#E0E0E0', borderRadius: 10,
-    padding: 12, fontSize: 15, marginBottom: 16,
-  },
-  addModalConfirmBtn: {
-    backgroundColor: '#6C63FF', padding: 16, borderRadius: 12, alignItems: 'center',
-  },
-  addModalConfirmText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
-});
+    addModalCard: {
+      backgroundColor: theme.card, borderTopLeftRadius: 20, borderTopRightRadius: 20,
+      padding: 24, paddingBottom: 40,
+    },
+    addModalLabel: { fontSize: 13, color: theme.textSecondary, marginBottom: 6 },
+    addModalInput: {
+      borderWidth: 1, borderColor: theme.border, borderRadius: 10,
+      padding: 12, fontSize: 15, marginBottom: 16, color: theme.text,
+      backgroundColor: theme.inputBg,
+    },
+    addModalConfirmBtn: {
+      backgroundColor: theme.primary, padding: 16, borderRadius: 12, alignItems: 'center',
+    },
+    addModalConfirmText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
+  });
+}

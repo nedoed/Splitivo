@@ -29,6 +29,8 @@ import { supabase } from '../lib/supabase';
 import { notifyGroupMembers } from '../lib/notifications';
 import { haptics } from '../lib/haptics';
 import { CATEGORIES, CATEGORY_SCAN_MAP, GroupMember } from '../types';
+import { useTheme } from '../lib/ThemeContext';
+import { Theme } from '../lib/theme';
 
 export default function AddExpenseScreen({ route, navigation }: any) {
   const { group, members }: { group: any; members: GroupMember[] } = route.params;
@@ -47,10 +49,12 @@ export default function AddExpenseScreen({ route, navigation }: any) {
   const [scanLoading, setScanLoading] = useState(false);
   const [receiptImage, setReceiptImage] = useState<string | null>(null);
 
+  const { theme } = useTheme();
+  const styles = getStyles(theme);
+
   const descriptionRef = useRef<TextInput>(null);
   const dateRef = useRef<TextInput>(null);
 
-  // Eingeloggten User als Standard-Zahler setzen
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (user) setPaidBy(user.id);
@@ -158,7 +162,6 @@ Erkenne alle einzelnen Positionen auf dem Kassenbon.`,
           ? parsed.currency as 'CHF' | 'EUR' | 'USD'
           : currency;
 
-        // Hat der Scan Positionen erkannt? → ReceiptSplitScreen öffnen
         if (Array.isArray(parsed.items) && parsed.items.length > 0) {
           haptics.success();
           setScanLoading(false);
@@ -177,7 +180,6 @@ Erkenne alle einzelnen Positionen auf dem Kassenbon.`,
           return;
         }
 
-        // Fallback: kein Positions-Array → Felder manuell befüllen
         haptics.success();
         if (parsed.total ?? parsed.amount) setAmount(String(parsed.total ?? parsed.amount));
         if (parsed.description) setDescription(parsed.description);
@@ -217,7 +219,6 @@ Erkenne alle einzelnen Positionen auf dem Kassenbon.`,
 
     setLoading(true);
     try {
-      // Kassenbon-Foto hochladen falls vorhanden
       let receiptUrl: string | null = null;
       if (receiptImage) {
         const base64 = await FileSystem.readAsStringAsync(receiptImage, {
@@ -306,10 +307,9 @@ Erkenne alle einzelnen Positionen auf dem Kassenbon.`,
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Kassenbon scannen */}
         <TouchableOpacity style={styles.scanBtn} onPress={scanReceipt} disabled={scanLoading}>
           {scanLoading ? (
-            <ActivityIndicator color="#6C63FF" />
+            <ActivityIndicator color={theme.primary} />
           ) : (
             <>
               <Text style={styles.scanIcon}>📷</Text>
@@ -322,7 +322,6 @@ Erkenne alle einzelnen Positionen auf dem Kassenbon.`,
           <Image source={{ uri: receiptImage }} style={styles.receiptPreview} resizeMode="cover" />
         )}
 
-        {/* Betrag + Währung */}
         <Text style={styles.label}>Betrag</Text>
         <View style={styles.amountRow}>
           <TextInput
@@ -331,7 +330,7 @@ Erkenne alle einzelnen Positionen auf dem Kassenbon.`,
             value={amount}
             onChangeText={setAmount}
             keyboardType="decimal-pad"
-            placeholderTextColor="#bbb"
+            placeholderTextColor={theme.border}
             returnKeyType="next"
             onSubmitEditing={() => descriptionRef.current?.focus()}
             blurOnSubmit={false}
@@ -352,7 +351,6 @@ Erkenne alle einzelnen Positionen auf dem Kassenbon.`,
           </View>
         </View>
 
-        {/* Beschreibung */}
         <Text style={styles.label}>Beschreibung</Text>
         <TextInput
           ref={descriptionRef}
@@ -360,13 +358,12 @@ Erkenne alle einzelnen Positionen auf dem Kassenbon.`,
           placeholder="z.B. Einkauf REWE"
           value={description}
           onChangeText={setDescription}
-          placeholderTextColor="#999"
+          placeholderTextColor={theme.textTertiary}
           returnKeyType="next"
           onSubmitEditing={() => dateRef.current?.focus()}
           blurOnSubmit={false}
         />
 
-        {/* Wer hat bezahlt */}
         <Text style={styles.label}>Wer hat bezahlt?</Text>
         <TouchableOpacity
           style={styles.pickerBtn}
@@ -376,7 +373,6 @@ Erkenne alle einzelnen Positionen auf dem Kassenbon.`,
           <Text style={styles.pickerArrow}>▾</Text>
         </TouchableOpacity>
 
-        {/* Kategorie */}
         <Text style={styles.label}>Kategorie</Text>
         <ScrollView
           horizontal
@@ -398,7 +394,6 @@ Erkenne alle einzelnen Positionen auf dem Kassenbon.`,
           ))}
         </ScrollView>
 
-        {/* Datum */}
         <Text style={styles.label}>Datum</Text>
         <TextInput
           ref={dateRef}
@@ -406,12 +401,11 @@ Erkenne alle einzelnen Positionen auf dem Kassenbon.`,
           placeholder="JJJJ-MM-TT"
           value={date}
           onChangeText={setDate}
-          placeholderTextColor="#999"
+          placeholderTextColor={theme.textTertiary}
           returnKeyType="done"
           onSubmitEditing={Keyboard.dismiss}
         />
 
-        {/* Aufteilen mit */}
         <Text style={styles.label}>Gleichmässig aufteilen mit</Text>
         <View style={styles.membersList}>
           {members.map((member) => {
@@ -438,7 +432,6 @@ Erkenne alle einzelnen Positionen auf dem Kassenbon.`,
           })}
         </View>
 
-        {/* Split-Vorschau */}
         {splitAmount > 0 && (
           <View style={styles.splitPreview}>
             <Text style={styles.splitPreviewLabel}>Aufteilung</Text>
@@ -451,7 +444,6 @@ Erkenne alle einzelnen Positionen auf dem Kassenbon.`,
           </View>
         )}
 
-        {/* Speichern */}
         <TouchableOpacity
           style={[styles.submitBtn, loading && styles.submitBtnDisabled]}
           onPress={handleSubmit}
@@ -466,7 +458,6 @@ Erkenne alle einzelnen Positionen auf dem Kassenbon.`,
       </TouchableWithoutFeedback>
       </KeyboardAvoidingView>
 
-      {/* Zahler-Picker Modal */}
       <Modal visible={paidByPickerVisible} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
@@ -507,110 +498,112 @@ Erkenne alle einzelnen Positionen auf dem Kassenbon.`,
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#F8F8FF' },
-  container: { flex: 1 },
-  content: { padding: 20, paddingBottom: 48 },
+function getStyles(theme: Theme) {
+  return StyleSheet.create({
+    safeArea: { flex: 1, backgroundColor: theme.background },
+    container: { flex: 1 },
+    content: { padding: 20, paddingBottom: 48 },
 
-  scanBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    backgroundColor: '#EEF0FF', borderRadius: 12, padding: 14, marginBottom: 20,
-    borderWidth: 2, borderColor: '#D8D5FF', borderStyle: 'dashed',
-  },
-  scanIcon: { fontSize: 22, marginRight: 8 },
-  scanText: { fontSize: 14, fontWeight: '600', color: '#6C63FF' },
-  receiptPreview: { width: '100%', height: 140, borderRadius: 12, marginBottom: 16 },
+    scanBtn: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+      backgroundColor: theme.primaryLight, borderRadius: 12, padding: 14, marginBottom: 20,
+      borderWidth: 2, borderColor: theme.border, borderStyle: 'dashed',
+    },
+    scanIcon: { fontSize: 22, marginRight: 8 },
+    scanText: { fontSize: 14, fontWeight: '600', color: theme.primary },
+    receiptPreview: { width: '100%', height: 140, borderRadius: 12, marginBottom: 16 },
 
-  label: { fontSize: 13, fontWeight: '600', color: '#555', marginBottom: 8 },
+    label: { fontSize: 13, fontWeight: '600', color: theme.textSecondary, marginBottom: 8 },
 
-  input: {
-    borderWidth: 1.5, borderColor: '#E8E8F0', borderRadius: 12,
-    paddingHorizontal: 16, paddingVertical: 14, fontSize: 15,
-    color: '#1a1a2e', backgroundColor: '#fff', marginBottom: 16,
-  },
-  amountRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 16 },
-  amountInput: { flex: 1, fontSize: 22, fontWeight: '700', color: '#1a1a2e', textAlign: 'center', marginBottom: 0 },
-  currencyPicker: { flexDirection: 'column', gap: 4 },
-  currencyBtn: {
-    alignItems: 'center', paddingHorizontal: 10, paddingVertical: 5,
-    borderRadius: 8, borderWidth: 1.5, borderColor: '#E8E8F0', backgroundColor: '#fff',
-  },
-  currencyBtnActive: { backgroundColor: '#EEF0FF', borderColor: '#6C63FF' },
-  currencyBtnText: { fontSize: 14 },
-  currencyBtnTextActive: {},
-  currencyCode: { fontSize: 9, fontWeight: '600', color: '#888', marginTop: 1 },
-  currencyCodeActive: { color: '#6C63FF' },
+    input: {
+      borderWidth: 1.5, borderColor: theme.border, borderRadius: 12,
+      paddingHorizontal: 16, paddingVertical: 14, fontSize: 15,
+      color: theme.text, backgroundColor: theme.card, marginBottom: 16,
+    },
+    amountRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 16 },
+    amountInput: { flex: 1, fontSize: 22, fontWeight: '700', color: theme.text, textAlign: 'center', marginBottom: 0 },
+    currencyPicker: { flexDirection: 'column', gap: 4 },
+    currencyBtn: {
+      alignItems: 'center', paddingHorizontal: 10, paddingVertical: 5,
+      borderRadius: 8, borderWidth: 1.5, borderColor: theme.border, backgroundColor: theme.card,
+    },
+    currencyBtnActive: { backgroundColor: theme.primaryLight, borderColor: theme.primary },
+    currencyBtnText: { fontSize: 14 },
+    currencyBtnTextActive: {},
+    currencyCode: { fontSize: 9, fontWeight: '600', color: theme.textSecondary, marginTop: 1 },
+    currencyCodeActive: { color: theme.primary },
 
-  pickerBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    borderWidth: 1.5, borderColor: '#E8E8F0', borderRadius: 12,
-    paddingHorizontal: 16, paddingVertical: 14, backgroundColor: '#fff', marginBottom: 16,
-  },
-  pickerBtnText: { fontSize: 15, color: '#1a1a2e', fontWeight: '500' },
-  pickerArrow: { fontSize: 14, color: '#999' },
+    pickerBtn: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+      borderWidth: 1.5, borderColor: theme.border, borderRadius: 12,
+      paddingHorizontal: 16, paddingVertical: 14, backgroundColor: theme.card, marginBottom: 16,
+    },
+    pickerBtnText: { fontSize: 15, color: theme.text, fontWeight: '500' },
+    pickerArrow: { fontSize: 14, color: theme.textTertiary },
 
-  categoriesScroll: { marginBottom: 16 },
-  categoriesContent: { paddingRight: 16 },
-  categoryChip: {
-    alignItems: 'center', backgroundColor: '#fff', borderRadius: 12,
-    paddingHorizontal: 12, paddingVertical: 10, marginRight: 8,
-    borderWidth: 1.5, borderColor: '#E8E8F0', minWidth: 72,
-  },
-  categoryChipActive: { backgroundColor: '#EEF0FF', borderColor: '#6C63FF' },
-  categoryIcon: { fontSize: 22, marginBottom: 4 },
-  categoryLabel: { fontSize: 10, color: '#888', textAlign: 'center' },
-  categoryLabelActive: { color: '#6C63FF', fontWeight: '600' },
+    categoriesScroll: { marginBottom: 16 },
+    categoriesContent: { paddingRight: 16 },
+    categoryChip: {
+      alignItems: 'center', backgroundColor: theme.card, borderRadius: 12,
+      paddingHorizontal: 12, paddingVertical: 10, marginRight: 8,
+      borderWidth: 1.5, borderColor: theme.border, minWidth: 72,
+    },
+    categoryChipActive: { backgroundColor: theme.primaryLight, borderColor: theme.primary },
+    categoryIcon: { fontSize: 22, marginBottom: 4 },
+    categoryLabel: { fontSize: 10, color: theme.textSecondary, textAlign: 'center' },
+    categoryLabelActive: { color: theme.primary, fontWeight: '600' },
 
-  membersList: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 },
-  memberChip: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff',
-    borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9,
-    borderWidth: 1.5, borderColor: '#E8E8F0',
-  },
-  memberChipActive: { backgroundColor: '#EEF0FF', borderColor: '#6C63FF' },
-  memberAvatar: {
-    width: 28, height: 28, borderRadius: 14, backgroundColor: '#ddd',
-    justifyContent: 'center', alignItems: 'center', marginRight: 8,
-  },
-  memberAvatarActive: { backgroundColor: '#6C63FF' },
-  memberAvatarText: { fontSize: 12, fontWeight: '700', color: '#fff' },
-  memberName: { fontSize: 13, color: '#555' },
-  memberNameActive: { color: '#6C63FF', fontWeight: '600' },
-  checkmark: { marginLeft: 6, color: '#6C63FF', fontWeight: '700', fontSize: 13 },
+    membersList: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 },
+    memberChip: {
+      flexDirection: 'row', alignItems: 'center', backgroundColor: theme.card,
+      borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9,
+      borderWidth: 1.5, borderColor: theme.border,
+    },
+    memberChipActive: { backgroundColor: theme.primaryLight, borderColor: theme.primary },
+    memberAvatar: {
+      width: 28, height: 28, borderRadius: 14, backgroundColor: theme.border,
+      justifyContent: 'center', alignItems: 'center', marginRight: 8,
+    },
+    memberAvatarActive: { backgroundColor: theme.primary },
+    memberAvatarText: { fontSize: 12, fontWeight: '700', color: '#fff' },
+    memberName: { fontSize: 13, color: theme.textSecondary },
+    memberNameActive: { color: theme.primary, fontWeight: '600' },
+    checkmark: { marginLeft: 6, color: theme.primary, fontWeight: '700', fontSize: 13 },
 
-  splitPreview: {
-    backgroundColor: '#EEF0FF', borderRadius: 12, padding: 16,
-    alignItems: 'center', marginBottom: 20,
-  },
-  splitPreviewLabel: { fontSize: 12, color: '#6C63FF', fontWeight: '600', marginBottom: 4 },
-  splitPreviewAmount: { fontSize: 24, fontWeight: '700', color: '#6C63FF' },
-  splitPreviewSub: { fontSize: 12, color: '#888', marginTop: 4 },
+    splitPreview: {
+      backgroundColor: theme.splitPreviewBg, borderRadius: 12, padding: 16,
+      alignItems: 'center', marginBottom: 20,
+    },
+    splitPreviewLabel: { fontSize: 12, color: theme.primary, fontWeight: '600', marginBottom: 4 },
+    splitPreviewAmount: { fontSize: 24, fontWeight: '700', color: theme.primary },
+    splitPreviewSub: { fontSize: 12, color: theme.textSecondary, marginTop: 4 },
 
-  submitBtn: {
-    backgroundColor: '#6C63FF', borderRadius: 12, paddingVertical: 16, alignItems: 'center',
-    shadowColor: '#6C63FF', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3,
-    shadowRadius: 8, elevation: 4,
-  },
-  submitBtnDisabled: { opacity: 0.7 },
-  submitBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+    submitBtn: {
+      backgroundColor: theme.primary, borderRadius: 12, paddingVertical: 16, alignItems: 'center',
+      shadowColor: theme.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3,
+      shadowRadius: 8, elevation: 4,
+    },
+    submitBtnDisabled: { opacity: 0.7 },
+    submitBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
 
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
-  modalCard: { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24 },
-  modalTitle: { fontSize: 18, fontWeight: '700', color: '#1a1a2e', marginBottom: 16 },
-  modalItem: {
-    flexDirection: 'row', alignItems: 'center', paddingVertical: 12,
-    paddingHorizontal: 8, borderRadius: 12, marginBottom: 4,
-  },
-  modalItemActive: { backgroundColor: '#EEF0FF' },
-  modalAvatar: {
-    width: 36, height: 36, borderRadius: 18, backgroundColor: '#ddd',
-    justifyContent: 'center', alignItems: 'center', marginRight: 12,
-  },
-  modalAvatarActive: { backgroundColor: '#6C63FF' },
-  modalAvatarText: { fontSize: 14, fontWeight: '700', color: '#fff' },
-  modalItemText: { flex: 1, fontSize: 15, color: '#1a1a2e' },
-  modalItemTextActive: { color: '#6C63FF', fontWeight: '600' },
-  modalCheck: { color: '#6C63FF', fontWeight: '700', fontSize: 16 },
-  modalCancel: { alignItems: 'center', paddingVertical: 16, marginTop: 8 },
-  modalCancelText: { color: '#888', fontSize: 15 },
-});
+    modalOverlay: { flex: 1, backgroundColor: theme.overlay, justifyContent: 'flex-end' },
+    modalCard: { backgroundColor: theme.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24 },
+    modalTitle: { fontSize: 18, fontWeight: '700', color: theme.text, marginBottom: 16 },
+    modalItem: {
+      flexDirection: 'row', alignItems: 'center', paddingVertical: 12,
+      paddingHorizontal: 8, borderRadius: 12, marginBottom: 4,
+    },
+    modalItemActive: { backgroundColor: theme.primaryLight },
+    modalAvatar: {
+      width: 36, height: 36, borderRadius: 18, backgroundColor: theme.border,
+      justifyContent: 'center', alignItems: 'center', marginRight: 12,
+    },
+    modalAvatarActive: { backgroundColor: theme.primary },
+    modalAvatarText: { fontSize: 14, fontWeight: '700', color: '#fff' },
+    modalItemText: { flex: 1, fontSize: 15, color: theme.text },
+    modalItemTextActive: { color: theme.primary, fontWeight: '600' },
+    modalCheck: { color: theme.primary, fontWeight: '700', fontSize: 16 },
+    modalCancel: { alignItems: 'center', paddingVertical: 16, marginTop: 8 },
+    modalCancelText: { color: theme.textSecondary, fontSize: 15 },
+  });
+}

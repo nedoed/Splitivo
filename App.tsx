@@ -17,6 +17,7 @@ import { registerForPushNotifications, savePushToken } from './src/lib/notificat
 import { joinGroupWithCode } from './src/lib/invites';
 import { haptics } from './src/lib/haptics';
 import { checkAndScheduleReminders } from './src/lib/reminders';
+import { ThemeProvider, useTheme } from './src/lib/ThemeContext';
 
 // Nativen Splash-Screen eingefroren halten bis wir bereit sind
 SplashScreen.preventAutoHideAsync();
@@ -102,7 +103,7 @@ function RootNavigator() {
   if (loading || !onboardingChecked) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F8F8FF' }}>
-        <ActivityIndicator size="large" color="#6C63FF" />
+        <ActivityIndicator size="large" color="#8B84FF" />
       </View>
     );
   }
@@ -142,10 +143,11 @@ export default function App() {
   }, [appReady]);
 
   return (
+    <ThemeProvider>
     <SafeAreaProvider>
       <View style={{ flex: 1 }}>
         <NavigationContainer>
-          <StatusBar style={splashDone ? 'dark' : 'light'} />
+          <AppStatusBar splashDone={splashDone} />
           <RootNavigator />
         </NavigationContainer>
 
@@ -221,5 +223,12 @@ export default function App() {
       )}
       </View>
     </SafeAreaProvider>
+    </ThemeProvider>
   );
+}
+
+function AppStatusBar({ splashDone }: { splashDone: boolean }) {
+  const { isDark } = useTheme();
+  if (!splashDone) return <StatusBar style="light" />;
+  return <StatusBar style={isDark ? 'light' : 'dark'} />;
 }

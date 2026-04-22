@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
+import { useTheme } from '../lib/ThemeContext';
 
 interface EmptyStateProps {
   emoji: string;
@@ -16,6 +17,8 @@ export default function EmptyState({
   buttonText,
   onButtonPress,
 }: EmptyStateProps) {
+  const { theme } = useTheme();
+
   return (
     <View
       style={{
@@ -31,7 +34,7 @@ export default function EmptyState({
           width: 120,
           height: 120,
           borderRadius: 60,
-          backgroundColor: '#F0EEFF',
+          backgroundColor: theme.primaryLight,
           justifyContent: 'center',
           alignItems: 'center',
           marginBottom: 24,
@@ -44,7 +47,7 @@ export default function EmptyState({
         style={{
           fontSize: 22,
           fontWeight: 'bold',
-          color: '#1a1a2e',
+          color: theme.text,
           textAlign: 'center',
           marginBottom: 12,
         }}
@@ -55,7 +58,7 @@ export default function EmptyState({
       <Text
         style={{
           fontSize: 15,
-          color: '#888',
+          color: theme.textSecondary,
           textAlign: 'center',
           lineHeight: 22,
           marginBottom: 32,
@@ -67,11 +70,11 @@ export default function EmptyState({
       {buttonText && onButtonPress && (
         <TouchableOpacity
           style={{
-            backgroundColor: '#6C63FF',
+            backgroundColor: theme.primary,
             paddingHorizontal: 32,
             paddingVertical: 14,
             borderRadius: 25,
-            shadowColor: '#6C63FF',
+            shadowColor: theme.primary,
             shadowOffset: { width: 0, height: 4 },
             shadowOpacity: 0.3,
             shadowRadius: 8,

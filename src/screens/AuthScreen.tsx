@@ -14,9 +14,8 @@ import {
   Keyboard,
 } from 'react-native';
 import { supabase } from '../lib/supabase';
-
-// Hinweis: Falls Registrierung nicht klappt → Supabase Dashboard →
-// Authentication → Settings → "Enable email confirmations" DEAKTIVIEREN
+import { useTheme } from '../lib/ThemeContext';
+import { Theme } from '../lib/theme';
 
 export default function AuthScreen() {
   const [isLogin, setIsLogin] = useState(true);
@@ -28,6 +27,9 @@ export default function AuthScreen() {
 
   const emailRef = useRef<TextInput>(null);
   const passwordRef = useRef<TextInput>(null);
+
+  const { theme } = useTheme();
+  const styles = getStyles(theme);
 
   const handleAuth = async () => {
     if (!email || !password) {
@@ -53,7 +55,6 @@ export default function AuthScreen() {
         if (error) throw error;
 
         if (data.user && data.session) {
-          // E-Mail-Bestätigung deaktiviert → direkt eingeloggt
           await supabase.from('profiles').upsert({
             id: data.user.id,
             username,
@@ -61,7 +62,6 @@ export default function AuthScreen() {
             avatar_url: null,
           });
         } else if (data.user && !data.session) {
-          // E-Mail-Bestätigung aktiv → zeige Hinweis
           setConfirmationPending(true);
         }
       }
@@ -111,7 +111,7 @@ export default function AuthScreen() {
                 value={username}
                 onChangeText={setUsername}
                 autoCapitalize="none"
-                placeholderTextColor="#999"
+                placeholderTextColor={theme.textTertiary}
                 returnKeyType="next"
                 onSubmitEditing={() => emailRef.current?.focus()}
                 blurOnSubmit={false}
@@ -129,7 +129,7 @@ export default function AuthScreen() {
               onChangeText={setEmail}
               keyboardType="email-address"
               autoCapitalize="none"
-              placeholderTextColor="#999"
+              placeholderTextColor={theme.textTertiary}
               returnKeyType="next"
               onSubmitEditing={() => passwordRef.current?.focus()}
               blurOnSubmit={false}
@@ -145,7 +145,7 @@ export default function AuthScreen() {
               value={password}
               onChangeText={setPassword}
               secureTextEntry
-              placeholderTextColor="#999"
+              placeholderTextColor={theme.textTertiary}
               returnKeyType="done"
               onSubmitEditing={handleAuth}
             />
@@ -181,115 +181,117 @@ export default function AuthScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F8F8FF',
-  },
-  scrollContent: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    padding: 24,
-  },
-  header: {
-    alignItems: 'center',
-    marginBottom: 40,
-  },
-  logo: {
-    fontSize: 64,
-    marginBottom: 12,
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: '700',
-    color: '#6C63FF',
-    letterSpacing: -0.5,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: '#888',
-    marginTop: 4,
-  },
-  card: {
-    backgroundColor: '#fff',
-    borderRadius: 24,
-    padding: 24,
-    shadowColor: '#6C63FF',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 20,
-    elevation: 5,
-  },
-  cardTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#1a1a2e',
-    marginBottom: 24,
-  },
-  inputContainer: {
-    marginBottom: 16,
-  },
-  inputLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#555',
-    marginBottom: 6,
-  },
-  input: {
-    borderWidth: 1.5,
-    borderColor: '#E8E8F0',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 15,
-    color: '#1a1a2e',
-    backgroundColor: '#FAFAFA',
-  },
-  button: {
-    backgroundColor: '#6C63FF',
-    borderRadius: 12,
-    paddingVertical: 16,
-    alignItems: 'center',
-    marginTop: 8,
-    shadowColor: '#6C63FF',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  buttonDisabled: {
-    opacity: 0.7,
-  },
-  buttonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  switchButton: {
-    alignItems: 'center',
-    marginTop: 20,
-  },
-  switchText: {
-    fontSize: 14,
-    color: '#888',
-  },
-  switchTextHighlight: {
-    color: '#6C63FF',
-    fontWeight: '600',
-  },
-  confirmBanner: {
-    backgroundColor: '#fff',
-    borderRadius: 24,
-    padding: 32,
-    alignItems: 'center',
-    shadowColor: '#6C63FF',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 20,
-    elevation: 5,
-  },
-  confirmIcon: { fontSize: 56, marginBottom: 16 },
-  confirmTitle: { fontSize: 22, fontWeight: '700', color: '#1a1a2e', marginBottom: 12 },
-  confirmText: { fontSize: 15, color: '#666', textAlign: 'center', lineHeight: 22, marginBottom: 20 },
-  confirmLink: { color: '#6C63FF', fontWeight: '700', fontSize: 16 },
-});
+function getStyles(theme: Theme) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: theme.background,
+    },
+    scrollContent: {
+      flexGrow: 1,
+      justifyContent: 'center',
+      padding: 24,
+    },
+    header: {
+      alignItems: 'center',
+      marginBottom: 40,
+    },
+    logo: {
+      fontSize: 64,
+      marginBottom: 12,
+    },
+    title: {
+      fontSize: 32,
+      fontWeight: '700',
+      color: theme.primary,
+      letterSpacing: -0.5,
+    },
+    subtitle: {
+      fontSize: 16,
+      color: theme.textSecondary,
+      marginTop: 4,
+    },
+    card: {
+      backgroundColor: theme.card,
+      borderRadius: 24,
+      padding: 24,
+      shadowColor: theme.primary,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.1,
+      shadowRadius: 20,
+      elevation: 5,
+    },
+    cardTitle: {
+      fontSize: 22,
+      fontWeight: '700',
+      color: theme.text,
+      marginBottom: 24,
+    },
+    inputContainer: {
+      marginBottom: 16,
+    },
+    inputLabel: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: theme.textSecondary,
+      marginBottom: 6,
+    },
+    input: {
+      borderWidth: 1.5,
+      borderColor: theme.border,
+      borderRadius: 12,
+      paddingHorizontal: 16,
+      paddingVertical: 14,
+      fontSize: 15,
+      color: theme.text,
+      backgroundColor: theme.inputBg,
+    },
+    button: {
+      backgroundColor: theme.primary,
+      borderRadius: 12,
+      paddingVertical: 16,
+      alignItems: 'center',
+      marginTop: 8,
+      shadowColor: theme.primary,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.3,
+      shadowRadius: 8,
+      elevation: 4,
+    },
+    buttonDisabled: {
+      opacity: 0.7,
+    },
+    buttonText: {
+      color: '#fff',
+      fontSize: 16,
+      fontWeight: '700',
+    },
+    switchButton: {
+      alignItems: 'center',
+      marginTop: 20,
+    },
+    switchText: {
+      fontSize: 14,
+      color: theme.textSecondary,
+    },
+    switchTextHighlight: {
+      color: theme.primary,
+      fontWeight: '600',
+    },
+    confirmBanner: {
+      backgroundColor: theme.card,
+      borderRadius: 24,
+      padding: 32,
+      alignItems: 'center',
+      shadowColor: theme.primary,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.1,
+      shadowRadius: 20,
+      elevation: 5,
+    },
+    confirmIcon: { fontSize: 56, marginBottom: 16 },
+    confirmTitle: { fontSize: 22, fontWeight: '700', color: theme.text, marginBottom: 12 },
+    confirmText: { fontSize: 15, color: theme.textSecondary, textAlign: 'center', lineHeight: 22, marginBottom: 20 },
+    confirmLink: { color: theme.primary, fontWeight: '700', fontSize: 16 },
+  });
+}
