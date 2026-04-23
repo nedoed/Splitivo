@@ -131,7 +131,7 @@ export default function AddExpenseScreen({ route, navigation }: any) {
   ]
 }
 Währung: CHF für Schweiz, EUR für Europa, USD für USA.
-Category: food, transport, accommodation, entertainment, shopping, health, expenses, other
+Category: food, transport, accommodation, entertainment, shopping, health, other
 Erkenne alle einzelnen Positionen auf dem Kassenbon.`,
               },
             ],

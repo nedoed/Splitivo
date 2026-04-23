@@ -70,7 +70,6 @@ export const CATEGORIES = [
   { label: 'Unterhaltung', value: 'entertainment', icon: '🎉' },
   { label: 'Einkaufen', value: 'shopping', icon: '🛒' },
   { label: 'Gesundheit', value: 'health', icon: '💊' },
-  { label: 'Spesen', value: 'expenses', icon: '💼' },
   { label: 'Sonstiges', value: 'other', icon: '📦' },
 ];
 
@@ -87,8 +86,6 @@ export const CATEGORY_SCAN_MAP: Record<string, string> = {
   einkauf: 'shopping',
   health: 'health',
   gesundheit: 'health',
-  expenses: 'expenses',
-  spesen: 'expenses',
   other: 'other',
   sonstiges: 'other',
 };

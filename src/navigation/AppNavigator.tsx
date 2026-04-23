@@ -1,8 +1,8 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
-import { Platform, Text } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Platform } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { haptics } from '../lib/haptics';
 import { useTheme } from '../lib/ThemeContext';
 
@@ -13,13 +13,22 @@ import ExpenseDetailScreen from '../screens/ExpenseDetailScreen';
 import ReceiptSplitScreen from '../screens/ReceiptSplitScreen';
 import ActivityScreen from '../screens/ActivityScreen';
 import SettleScreen from '../screens/SettleScreen';
-import SpesaScreen from '../screens/SpesaScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import FriendsScreen from '../screens/FriendsScreen';
 import StatsScreen from '../screens/StatsScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
+
+type IoniconsName = React.ComponentProps<typeof Ionicons>['name'];
+
+const TAB_ICONS: Record<string, IoniconsName> = {
+  Gruppen: 'people',
+  Aktivität: 'list',
+  Statistik: 'bar-chart',
+  Abrechnen: 'cash',
+  Profil: 'person',
+};
 
 function ProfileStack() {
   const { theme } = useTheme();
@@ -59,22 +68,8 @@ function GroupsStack() {
   );
 }
 
-const TAB_ICONS: { [key: string]: { active: string; inactive: string } } = {
-  Gruppen: { active: '👥', inactive: '👤' },
-  Aktivität: { active: '📋', inactive: '📋' },
-  Statistiken: { active: '📊', inactive: '📈' },
-  Abrechnen: { active: '💸', inactive: '💰' },
-  Spesen: { active: '💼', inactive: '💼' },
-  Profil: { active: '👤', inactive: '🙂' },
-};
-
 export default function AppNavigator() {
-  const insets = useSafeAreaInsets();
   const { theme } = useTheme();
-  const bottomInset = Platform.OS === 'android'
-    ? Math.max(insets.bottom, 16)
-    : insets.bottom;
-  const TAB_HEIGHT = 62;
 
   return (
     <Tab.Navigator
@@ -82,9 +77,9 @@ export default function AppNavigator() {
         tabPress: () => haptics.light(),
       }}
       screenOptions={({ route }) => ({
-        tabBarIcon: ({ focused }) => {
-          const icons = TAB_ICONS[route.name] ?? { active: '•', inactive: '•' };
-          return <Text style={{ fontSize: 22 }}>{focused ? icons.active : icons.inactive}</Text>;
+        tabBarIcon: ({ color, size }) => {
+          const iconName = TAB_ICONS[route.name] ?? 'ellipse';
+          return <Ionicons name={iconName} size={size} color={color} />;
         },
         tabBarActiveTintColor: theme.primary,
         tabBarInactiveTintColor: theme.textSecondary,
@@ -97,18 +92,22 @@ export default function AppNavigator() {
           shadowOpacity: 0.06,
           shadowRadius: 12,
           elevation: 10,
-          paddingBottom: bottomInset,
-          height: TAB_HEIGHT + bottomInset,
+          height: Platform.select({ ios: 80, android: 65 }),
+          paddingTop: Platform.select({ ios: 0, android: 8 }),
+          paddingBottom: Platform.select({ ios: 20, android: 10 }),
         },
-        tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
+        tabBarLabelStyle: {
+          fontSize: 10,
+          fontWeight: '600',
+          marginBottom: Platform.select({ ios: 0, android: 4 }),
+        },
         headerShown: false,
       })}
     >
       <Tab.Screen name="Gruppen" component={GroupsStack} />
       <Tab.Screen name="Aktivität" component={ActivityScreen} />
-      <Tab.Screen name="Statistiken" component={StatsScreen} />
+      <Tab.Screen name="Statistik" component={StatsScreen} />
       <Tab.Screen name="Abrechnen" component={SettleScreen} />
-      <Tab.Screen name="Spesen" component={SpesaScreen} />
       <Tab.Screen name="Profil" component={ProfileStack} />
     </Tab.Navigator>
   );
