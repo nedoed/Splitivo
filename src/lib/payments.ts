@@ -1,32 +1,34 @@
-import * as Linking from 'expo-linking';
+import { Linking, Platform, Alert } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
-import { Alert } from 'react-native';
 import { supabase } from './supabase';
 import { haptics } from './haptics';
 
-/**
- * Öffnet TWINT direkt, oder leitet zum App Store weiter.
- * Gibt true zurück wenn die App geöffnet werden konnte.
- */
 export const payWithTwint = async (): Promise<boolean> => {
-  const canOpen = await Linking.canOpenURL('twint://');
+  const schemes = ['twint://', 'ch.twint.payment://'];
 
-  if (canOpen) {
-    await Linking.openURL('twint://');
-    haptics.success();
-    return true;
+  for (const scheme of schemes) {
+    const canOpen = await Linking.canOpenURL(scheme);
+    if (canOpen) {
+      await Linking.openURL(scheme);
+      haptics.success();
+      return true;
+    }
   }
 
   return new Promise((resolve) => {
     Alert.alert(
       'TWINT nicht installiert',
-      'Möchtest du TWINT im App Store öffnen?',
+      'Möchtest du TWINT installieren?',
       [
         { text: 'Abbrechen', style: 'cancel', onPress: () => resolve(false) },
         {
-          text: 'App Store',
+          text: 'Installieren',
           onPress: () => {
-            Linking.openURL('https://apps.apple.com/ch/app/twint/id1262500691');
+            Linking.openURL(
+              Platform.OS === 'ios'
+                ? 'https://apps.apple.com/ch/app/twint/id1262500691'
+                : 'https://play.google.com/store/apps/details?id=ch.twint.payment'
+            );
             resolve(false);
           },
         },
@@ -35,35 +37,38 @@ export const payWithTwint = async (): Promise<boolean> => {
   });
 };
 
-/**
- * Öffnet PayPal mit optionalem paypal.me-Direktlink.
- */
-export const payWithPayPal = async (
-  amount: number,
-  currency: string,
-  recipientPayPalMe?: string | null
-): Promise<boolean> => {
-  if (recipientPayPalMe) {
-    const url = `https://paypal.me/${recipientPayPalMe}/${amount.toFixed(2)}${currency}`;
-    await Linking.openURL(url);
-    haptics.success();
-    return true;
+export const payWithPayPal = async (recipientId: string): Promise<boolean> => {
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('paypal_me, username')
+    .eq('id', recipientId)
+    .single();
+
+  if (!profile?.paypal_me) {
+    return new Promise((resolve) => {
+      Alert.alert(
+        'PayPal nicht verknüpft',
+        `${profile?.username ?? 'Diese Person'} hat kein PayPal-Konto hinterlegt.\n\nAlternative Zahlungsmethoden:\n• TWINT\n• Banküberweisung (IBAN)\n• Bar`,
+        [
+          { text: 'OK', style: 'cancel', onPress: () => resolve(false) },
+          {
+            text: 'TWINT verwenden',
+            onPress: async () => {
+              const opened = await payWithTwint();
+              resolve(opened);
+            },
+          },
+        ]
+      );
+    });
   }
 
-  const canOpen = await Linking.canOpenURL('paypal://');
-  if (canOpen) {
-    await Linking.openURL('paypal://');
-  } else {
-    await Linking.openURL('https://www.paypal.com');
-  }
+  const url = `https://paypal.me/${profile.paypal_me}`;
+  await Linking.openURL(url);
   haptics.success();
   return true;
 };
 
-/**
- * Zeigt die Bankverbindung des Empfängers an.
- * Gibt true zurück wenn IBAN vorhanden war.
- */
 export const showBankDetails = async (userId: string): Promise<boolean> => {
   const { data: profile } = await supabase
     .from('profiles')

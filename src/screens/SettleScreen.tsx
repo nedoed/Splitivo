@@ -9,6 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../lib/supabase';
 import { notifyUser } from '../lib/notifications';
 import { haptics } from '../lib/haptics';
+import { payWithTwint, payWithPayPal, showBankDetails } from '../lib/payments';
 import EmptyState from '../components/EmptyState';
 import { useTheme } from '../lib/ThemeContext';
 import { Theme } from '../lib/theme';
@@ -311,19 +312,50 @@ export default function SettleScreen() {
     loadHistory();
   };
 
+  const askSettled = (entry: DebtEntry, method: string) => {
+    setTimeout(() => {
+      Alert.alert(
+        'Zahlung abgeschlossen?',
+        'Möchtest du diese Schulden als beglichen markieren?',
+        [
+          { text: 'Nein', style: 'cancel' },
+          { text: 'Ja, beglichen', onPress: () => markSplitsSettled(entry.splits, method, entry.payerId) },
+        ]
+      );
+    }, 400);
+  };
+
   const settleDebtEntry = (entry: DebtEntry) => {
     const total = entry.splits.reduce((s, sp) => s + sp.amount, 0);
     haptics.warning();
     Alert.alert(
       'Alle begleichen',
-      `${total.toFixed(2)} ${entry.currency} an ${entry.payerName} — Wie wurde bezahlt?`,
+      `${total.toFixed(2)} ${entry.currency} an ${entry.payerName} — Wie bezahlen?`,
       [
         { text: 'Abbrechen', style: 'cancel' },
-        { text: '💙 TWINT',           onPress: () => markSplitsSettled(entry.splits, 'TWINT', entry.payerId) },
-        { text: '🔵 PayPal',          onPress: () => markSplitsSettled(entry.splits, 'PayPal', entry.payerId) },
-        { text: '🏦 Banküberweisung', onPress: () => markSplitsSettled(entry.splits, 'Banküberweisung', entry.payerId) },
-        { text: '💵 Bar',             onPress: () => markSplitsSettled(entry.splits, 'Bar', entry.payerId) },
-        { text: '✅ Sonstiges',       onPress: () => markSplitsSettled(entry.splits, 'Sonstiges', entry.payerId) },
+        {
+          text: '💙 TWINT',
+          onPress: async () => {
+            const opened = await payWithTwint();
+            if (opened) askSettled(entry, 'TWINT');
+          },
+        },
+        {
+          text: '🔵 PayPal',
+          onPress: async () => {
+            const opened = await payWithPayPal(entry.payerId);
+            if (opened) askSettled(entry, 'PayPal');
+          },
+        },
+        {
+          text: '🏦 Banküberweisung',
+          onPress: async () => {
+            const shown = await showBankDetails(entry.payerId);
+            if (shown) askSettled(entry, 'Banküberweisung');
+          },
+        },
+        { text: '💵 Bar',       onPress: () => markSplitsSettled(entry.splits, 'Bar', entry.payerId) },
+        { text: '✅ Sonstiges', onPress: () => markSplitsSettled(entry.splits, 'Sonstiges', entry.payerId) },
       ]
     );
   };
