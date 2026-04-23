@@ -132,11 +132,27 @@ function SwipeableGroupCard({
           </View>
           <View style={styles.groupInfo}>
             <Text style={styles.groupName}>{group.name}</Text>
-            <Text style={styles.groupDesc} numberOfLines={1}>
-              {group.description
-                ? group.description
-                : `${group.member_count ?? 1} Mitglied${(group.member_count ?? 1) !== 1 ? 'er' : ''}`}
-            </Text>
+            {group.member_profiles && group.member_profiles.length > 0 ? (
+              <View style={styles.memberRow}>
+                {group.member_profiles.slice(0, 4).map((m, i) => (
+                  <View key={i} style={[styles.miniAvatar, i > 0 && { marginLeft: -6 }]}>
+                    <Text style={styles.miniAvatarText}>
+                      {m.username?.[0]?.toUpperCase() ?? '?'}
+                    </Text>
+                  </View>
+                ))}
+                <Text style={[styles.groupDesc, { marginLeft: 8, flex: 1 }]} numberOfLines={1}>
+                  {group.member_profiles.slice(0, 3).map((m) => m.username).filter(Boolean).join(' · ')}
+                  {group.member_profiles.length > 3 ? ` +${group.member_profiles.length - 3}` : ''}
+                </Text>
+              </View>
+            ) : (
+              <Text style={styles.groupDesc} numberOfLines={1}>
+                {group.description
+                  ? group.description
+                  : `${group.member_count ?? 1} Mitglied${(group.member_count ?? 1) !== 1 ? 'er' : ''}`}
+              </Text>
+            )}
           </View>
           <Text style={styles.arrow}>›</Text>
         </TouchableOpacity>
@@ -194,16 +210,23 @@ export default function GroupsScreen({ navigation }: any) {
     if (!error && data) {
       const { data: allMembers } = await supabase
         .from('group_members')
-        .select('group_id')
+        .select('group_id, profiles(username)')
         .in('group_id', groupIds);
 
       const countMap: { [key: string]: number } = {};
-      allMembers?.forEach((m) => {
+      const membersByGroup: { [key: string]: Array<{ username: string | null }> } = {};
+      (allMembers as any[])?.forEach((m) => {
         countMap[m.group_id] = (countMap[m.group_id] || 0) + 1;
+        if (!membersByGroup[m.group_id]) membersByGroup[m.group_id] = [];
+        membersByGroup[m.group_id].push({ username: m.profiles?.username ?? null });
       });
 
       setGroups(
-        data.map((g) => ({ ...g, member_count: countMap[g.id] || 1 })) as Group[]
+        data.map((g) => ({
+          ...g,
+          member_count: countMap[g.id] || 1,
+          member_profiles: membersByGroup[g.id] ?? [],
+        })) as Group[]
       );
     }
     setLoading(false);
@@ -479,6 +502,15 @@ function getStyles(theme: Theme) {
     groupName: { fontSize: 16, fontWeight: '600', color: theme.text },
     groupDesc: { fontSize: 13, color: theme.textSecondary, marginTop: 2 },
     arrow: { fontSize: 22, color: theme.border },
+
+    memberRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
+    miniAvatar: {
+      width: 22, height: 22, borderRadius: 11,
+      backgroundColor: theme.primary,
+      justifyContent: 'center', alignItems: 'center',
+      borderWidth: 1.5, borderColor: theme.card,
+    },
+    miniAvatarText: { color: '#fff', fontSize: 9, fontWeight: '700' },
 
     modalOverlay: { flex: 1, backgroundColor: theme.overlay, justifyContent: 'flex-end' },
     modalCard: { backgroundColor: theme.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24 },

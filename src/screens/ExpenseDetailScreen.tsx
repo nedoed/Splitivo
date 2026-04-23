@@ -5,7 +5,9 @@ import {
   KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../lib/supabase';
+import { haptics } from '../lib/haptics';
 import { CATEGORIES, GroupMember } from '../types';
 import { useTheme } from '../lib/ThemeContext';
 import { Theme } from '../lib/theme';
@@ -129,6 +131,58 @@ export default function ExpenseDetailScreen({ route, navigation }: any) {
         },
       },
     ]);
+  };
+
+  const moveExpenseToGroup = async (newGroupId: string) => {
+    const { error } = await supabase
+      .from('expenses')
+      .update({ group_id: newGroupId })
+      .eq('id', expense!.id);
+
+    if (error) { Alert.alert('Fehler', error.message); return; }
+
+    haptics.success();
+    Alert.alert('Verschoben!', 'Die Ausgabe wurde in die andere Gruppe verschoben.', [
+      { text: 'OK', onPress: () => navigation.goBack() },
+    ]);
+  };
+
+  const showGroupPicker = async () => {
+    const { data: userData } = await supabase.auth.getUser();
+    if (!userData.user) return;
+
+    const { data: memberships } = await supabase
+      .from('group_members')
+      .select('group_id')
+      .eq('user_id', userData.user.id);
+
+    if (!memberships || memberships.length === 0) return;
+
+    const myGroupIds = memberships.map((m) => m.group_id);
+    const currentGroupId = initialExpense.group_id;
+
+    const { data: myGroups } = await supabase
+      .from('groups')
+      .select('id, name')
+      .in('id', myGroupIds)
+      .neq('id', currentGroupId);
+
+    if (!myGroups || myGroups.length === 0) {
+      Alert.alert('Keine anderen Gruppen', 'Du bist in keiner anderen Gruppe.');
+      return;
+    }
+
+    Alert.alert(
+      'Gruppe ändern',
+      'In welche Gruppe verschieben?',
+      [
+        ...myGroups.map((g) => ({
+          text: g.name,
+          onPress: () => moveExpenseToGroup(g.id),
+        })),
+        { text: 'Abbrechen', style: 'cancel' as const },
+      ]
+    );
   };
 
   const getCategoryInfo = (val: string) =>
@@ -297,14 +351,20 @@ export default function ExpenseDetailScreen({ route, navigation }: any) {
             </TouchableOpacity>
           </KeyboardAvoidingView>
         ) : (
-          <View style={styles.actionRow}>
-            <TouchableOpacity style={styles.editBtn} onPress={() => setEditMode(true)}>
-              <Text style={styles.editBtnText}>✏️  Bearbeiten</Text>
+          <>
+            <View style={styles.actionRow}>
+              <TouchableOpacity style={styles.editBtn} onPress={() => setEditMode(true)}>
+                <Text style={styles.editBtnText}>✏️  Bearbeiten</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.deleteBtn} onPress={deleteExpense}>
+                <Text style={styles.deleteBtnText}>🗑️  Löschen</Text>
+              </TouchableOpacity>
+            </View>
+            <TouchableOpacity style={styles.moveGroupBtn} onPress={showGroupPicker}>
+              <Ionicons name="arrow-forward-circle-outline" size={22} color={theme.primary} />
+              <Text style={styles.moveGroupBtnText}>In andere Gruppe verschieben</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.deleteBtn} onPress={deleteExpense}>
-              <Text style={styles.deleteBtnText}>🗑️  Löschen</Text>
-            </TouchableOpacity>
-          </View>
+          </>
         )}
       </ScrollView>
 
@@ -457,6 +517,12 @@ function getStyles(theme: Theme) {
     primaryBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
     cancelBtn: { alignItems: 'center', paddingVertical: 12 },
     cancelBtnText: { color: theme.textSecondary, fontSize: 15 },
+    moveGroupBtn: {
+      flexDirection: 'row', alignItems: 'center',
+      padding: 14, backgroundColor: theme.card,
+      borderRadius: 12, marginTop: 8, gap: 10,
+    },
+    moveGroupBtnText: { color: theme.primary, fontWeight: '500', fontSize: 15 },
 
     fullscreenModal: { flex: 1, backgroundColor: '#000', justifyContent: 'center', alignItems: 'center' },
     fullscreenClose: {

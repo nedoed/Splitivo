@@ -21,6 +21,7 @@ export interface Group {
   created_at: string;
   member_count?: number;
   total_expenses?: number;
+  member_profiles?: Array<{ username: string | null }>;
 }
 
 export interface GroupMember {

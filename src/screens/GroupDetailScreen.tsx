@@ -146,10 +146,13 @@ export default function GroupDetailScreen({ route, navigation }: any) {
 
     await Share.share({
       message:
-        `Tritt meiner Splitivo Gruppe „${group.name}" bei!\n\n` +
-        `Einladungscode: ${code}\n\n` +
-        `Öffne Splitivo → Gruppen → „Per Code beitreten" und gib den Code ein.\n\n` +
-        `Oder tippe diesen Link: splitivo://join/${code}\n\n` +
+        `Hallo! Ich lade dich ein, meiner Splitivo Gruppe „${group.name}" beizutreten.\n\n` +
+        `1. Lade Splitivo herunter:\n` +
+        `   iOS: https://apps.apple.com/app/splitivo/id6762624155\n` +
+        `   Android: https://play.google.com/store/apps/details?id=com.nedoed.splitivo\n\n` +
+        `2. Öffne die App und tippe auf „Code eingeben"\n\n` +
+        `3. Gib diesen Code ein: ${code}\n\n` +
+        `Oder tippe direkt auf diesen Link: splitivo://join/${code}\n\n` +
         `(Gültig 7 Tage)`,
       title: 'Splitivo Einladung',
     });
