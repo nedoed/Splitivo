@@ -6,6 +6,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system';
 import { useFocusEffect } from '@react-navigation/native';
 import { supabase } from '../lib/supabase';
 import { haptics } from '../lib/haptics';
@@ -174,7 +175,11 @@ export default function ProfileScreen({ navigation }: any) {
         onPress: async () => {
           const { status } = await ImagePicker.requestCameraPermissionsAsync();
           if (status !== 'granted') { Alert.alert('Berechtigung', 'Kamera-Zugriff benötigt.'); return; }
-          const result = await ImagePicker.launchCameraAsync({ quality: 0.7 });
+          const result = await ImagePicker.launchCameraAsync({
+            quality: 0.7,
+            mediaTypes: ['images'],
+            copyToCacheDirectory: true,  // garantiert file://-URI, auch in Expo Go
+          });
           if (!result.canceled) uploadAvatar(result.assets[0].uri);
         },
       },
@@ -183,7 +188,11 @@ export default function ProfileScreen({ navigation }: any) {
         onPress: async () => {
           const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
           if (status !== 'granted') { Alert.alert('Berechtigung', 'Galerie-Zugriff benötigt.'); return; }
-          const result = await ImagePicker.launchImageLibraryAsync({ quality: 0.7 });
+          const result = await ImagePicker.launchImageLibraryAsync({
+            quality: 0.7,
+            mediaTypes: ['images'],
+            copyToCacheDirectory: true,  // garantiert file://-URI, auch in Expo Go
+          });
           if (!result.canceled) uploadAvatar(result.assets[0].uri);
         },
       },
@@ -193,30 +202,70 @@ export default function ProfileScreen({ navigation }: any) {
 
   const uploadAvatar = async (uri: string) => {
     setUploadingAvatar(true);
-    const { data: user } = await supabase.auth.getUser();
-    if (!user.user) return;
+
+    let userId: string;
+    try {
+      const { data: userData, error: authError } = await supabase.auth.getUser();
+      if (authError || !userData.user) throw new Error('Nicht angemeldet.');
+      userId = userData.user.id;
+    } catch (e: any) {
+      Alert.alert('Fehler', e.message ?? 'Authentifizierung fehlgeschlagen.');
+      setUploadingAvatar(false);
+      return;
+    }
 
     try {
-      const response = await fetch(uri);
-      const blob = await response.blob();
-      const fileName = `avatar-${user.user.id}-${Date.now()}.jpg`;
+      // Sicherstellen dass die Datei lesbar und nicht leer ist.
+      // fetch().blob() gibt in React Native size:0 zurück — deshalb
+      // expo-file-system verwenden, das direkt auf file://-URIs zugreift.
+      const fileInfo = await FileSystem.getInfoAsync(uri);
+      if (!fileInfo.exists) {
+        throw new Error('Bilddatei wurde nicht gefunden. Bitte versuche es erneut.');
+      }
+      if ('size' in fileInfo && fileInfo.size === 0) {
+        throw new Error('Bilddatei ist leer. Bitte wähle ein anderes Bild.');
+      }
 
+      const base64 = await FileSystem.readAsStringAsync(uri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      if (!base64 || base64.length === 0) {
+        throw new Error('Bild konnte nicht gelesen werden. Bitte versuche es erneut.');
+      }
+
+      // Base64 → Uint8Array (ArrayBufferView wird vom Supabase-Client korrekt übertragen)
+      const byteCharacters = atob(base64);
+      const bytes = new Uint8Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        bytes[i] = byteCharacters.charCodeAt(i);
+      }
+
+      const fileName = `avatar-${userId}-${Date.now()}.jpg`;
       const { error: uploadError } = await supabase.storage
         .from('avatars')
-        .upload(fileName, blob, { contentType: 'image/jpeg', upsert: true });
+        .upload(fileName, bytes, { contentType: 'image/jpeg', upsert: true });
 
-      if (uploadError) throw uploadError;
+      if (uploadError) {
+        // Supabase-Fehlermeldungen sind oft technisch — benutzerfreundlich übersetzen
+        if (uploadError.message.includes('exceeded')) {
+          throw new Error('Das Bild ist zu groß. Bitte wähle ein kleineres Bild (max. 5 MB).');
+        }
+        throw new Error('Upload fehlgeschlagen. Bitte prüfe deine Internetverbindung.');
+      }
 
       const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(fileName);
-
-      await supabase
+      const { error: updateError } = await supabase
         .from('profiles')
         .update({ avatar_url: urlData.publicUrl })
-        .eq('id', user.user.id);
+        .eq('id', userId);
 
+      if (updateError) throw new Error('Profilbild gespeichert, aber Profil konnte nicht aktualisiert werden.');
+
+      haptics.success();
       fetchProfile();
     } catch (e: any) {
-      Alert.alert('Fehler', e.message ?? 'Upload fehlgeschlagen.');
+      haptics.error();
+      Alert.alert('Upload fehlgeschlagen', e.message ?? 'Ein unbekannter Fehler ist aufgetreten.');
     } finally {
       setUploadingAvatar(false);
     }
