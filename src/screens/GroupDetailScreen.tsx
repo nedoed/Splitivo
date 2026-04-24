@@ -105,6 +105,21 @@ export default function GroupDetailScreen({ route, navigation }: any) {
 
   const addFriendToGroup = async (friend: any) => {
     setAddingFriendId(friend.id);
+
+    const { data: existing } = await supabase
+      .from('group_members')
+      .select('id')
+      .eq('group_id', group.id)
+      .eq('user_id', friend.id)
+      .maybeSingle();
+
+    if (existing) {
+      haptics.warning();
+      Alert.alert('Bereits Mitglied', `${friend.username} ist bereits in dieser Gruppe.`);
+      setAddingFriendId(null);
+      return;
+    }
+
     const { error } = await supabase
       .from('group_members')
       .insert({ group_id: group.id, user_id: friend.id });

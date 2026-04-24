@@ -210,8 +210,9 @@ function getStyles(theme: Theme) {
     pillsScroll: { marginBottom: 4 },
     pillsContent: { paddingHorizontal: 16, gap: 8 },
     pill: {
-      paddingHorizontal: 16, paddingVertical: 8,
-      borderRadius: 20, backgroundColor: theme.inputBg,
+      height: 36, paddingHorizontal: 16,
+      borderRadius: 18, backgroundColor: theme.inputBg,
+      justifyContent: 'center', alignItems: 'center',
     },
     pillActive: { backgroundColor: theme.primary },
     pillText: { color: theme.textSecondary, fontWeight: '600', fontSize: 13 },
