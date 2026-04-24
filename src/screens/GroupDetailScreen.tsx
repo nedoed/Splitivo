@@ -3,11 +3,12 @@ import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
   ActivityIndicator, RefreshControl, Alert, Modal, TextInput,
   KeyboardAvoidingView, Platform, TouchableWithoutFeedback, Keyboard,
-  Share,
+  Share, LayoutAnimation, UIManager, Image,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../lib/supabase';
 import { Expense, Group, GroupMember, CATEGORIES } from '../types';
 import EmptyState from '../components/EmptyState';
@@ -16,6 +17,10 @@ import { haptics } from '../lib/haptics';
 import { generateInviteCode } from '../lib/invites';
 import { useTheme } from '../lib/ThemeContext';
 import { Theme } from '../lib/theme';
+
+if (Platform.OS === 'android') {
+  UIManager.setLayoutAnimationEnabledExperimental?.(true);
+}
 
 export default function GroupDetailScreen({ route, navigation }: any) {
   const { group }: { group: Group } = route.params;
@@ -31,6 +36,7 @@ export default function GroupDetailScreen({ route, navigation }: any) {
   const [addingFriendId, setAddingFriendId] = useState<string | null>(null);
   const [generatingLink, setGeneratingLink] = useState(false);
   const [lastInviteCode, setLastInviteCode] = useState<string | null>(null);
+  const [membersExpanded, setMembersExpanded] = useState(false);
 
   const { theme } = useTheme();
   const styles = getStyles(theme);
@@ -238,6 +244,11 @@ export default function GroupDetailScreen({ route, navigation }: any) {
     setInviting(false);
   };
 
+  const toggleMembers = () => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setMembersExpanded(v => !v);
+  };
+
   const getCategoryIcon = (cat: string) => {
     return CATEGORIES.find((c) => c.value === cat)?.icon ?? '📦';
   };
@@ -254,13 +265,45 @@ export default function GroupDetailScreen({ route, navigation }: any) {
 
   const renderMembersHeader = () => (
     <View style={styles.membersSection}>
-      <Text style={styles.membersSectionTitle}>Mitglieder ({members.length})</Text>
-      {members.map((m: any) => (
+      <TouchableOpacity
+        style={styles.membersSectionHeader}
+        onPress={toggleMembers}
+        activeOpacity={0.7}
+      >
+        <Text style={styles.membersSectionTitle}>MITGLIEDER ({members.length})</Text>
+        <View style={styles.membersSectionRight}>
+          {!membersExpanded && members.slice(0, 3).map((m: any, i: number) => (
+            <View key={m.id} style={[styles.miniAvatarPreview, i > 0 && { marginLeft: -6 }]}>
+              <Text style={styles.miniAvatarPreviewText}>
+                {m.profiles?.username?.[0]?.toUpperCase() ?? '?'}
+              </Text>
+            </View>
+          ))}
+          {!membersExpanded && members.length > 3 && (
+            <Text style={styles.miniAvatarMore}>+{members.length - 3}</Text>
+          )}
+          <Ionicons
+            name={membersExpanded ? 'chevron-up' : 'chevron-down'}
+            size={16}
+            color={theme.textSecondary}
+            style={{ marginLeft: 8 }}
+          />
+        </View>
+      </TouchableOpacity>
+
+      {membersExpanded && members.map((m: any) => (
         <View key={m.id} style={styles.memberRow}>
           <View style={styles.memberRowAvatar}>
-            <Text style={styles.memberRowAvatarText}>
-              {m.profiles?.username?.charAt(0).toUpperCase() ?? '?'}
-            </Text>
+            {m.profiles?.avatar_url ? (
+              <Image
+                source={{ uri: m.profiles.avatar_url }}
+                style={{ width: 40, height: 40, borderRadius: 20 }}
+              />
+            ) : (
+              <Text style={styles.memberRowAvatarText}>
+                {m.profiles?.username?.charAt(0).toUpperCase() ?? '?'}
+              </Text>
+            )}
           </View>
           <Text style={styles.memberRowName}>
             {m.profiles?.username ?? 'Unbekannt'}
@@ -497,10 +540,23 @@ function getStyles(theme: Theme) {
     expenseAmount: { fontSize: 16, fontWeight: '700', color: theme.primary },
     expenseChevron: { fontSize: 16, color: theme.border, marginTop: 2 },
     membersSection: { marginBottom: 16 },
+    membersSectionHeader: {
+      flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+      paddingVertical: 12, marginBottom: 4,
+    },
     membersSectionTitle: {
       fontSize: 12, fontWeight: '700', color: theme.textSecondary,
-      textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8,
+      textTransform: 'uppercase', letterSpacing: 0.5,
     },
+    membersSectionRight: { flexDirection: 'row', alignItems: 'center' },
+    miniAvatarPreview: {
+      width: 24, height: 24, borderRadius: 12,
+      backgroundColor: theme.primary,
+      justifyContent: 'center', alignItems: 'center',
+      borderWidth: 1.5, borderColor: theme.background,
+    },
+    miniAvatarPreviewText: { color: '#fff', fontSize: 10, fontWeight: '700' },
+    miniAvatarMore: { color: theme.textSecondary, fontSize: 11, marginLeft: 6 },
     memberRow: {
       flexDirection: 'row', alignItems: 'center',
       backgroundColor: theme.card, borderRadius: 12,
