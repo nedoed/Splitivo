@@ -7,6 +7,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
+import { decode } from 'base64-arraybuffer';
 import { useFocusEffect } from '@react-navigation/native';
 import { supabase } from '../lib/supabase';
 import { haptics } from '../lib/haptics';
@@ -178,7 +179,6 @@ export default function ProfileScreen({ navigation }: any) {
           const result = await ImagePicker.launchCameraAsync({
             quality: 0.7,
             mediaTypes: ['images'],
-            copyToCacheDirectory: true,  // garantiert file://-URI, auch in Expo Go
           });
           if (!result.canceled) uploadAvatar(result.assets[0].uri);
         },
@@ -191,7 +191,6 @@ export default function ProfileScreen({ navigation }: any) {
           const result = await ImagePicker.launchImageLibraryAsync({
             quality: 0.7,
             mediaTypes: ['images'],
-            copyToCacheDirectory: true,  // garantiert file://-URI, auch in Expo Go
           });
           if (!result.canceled) uploadAvatar(result.assets[0].uri);
         },
@@ -233,17 +232,10 @@ export default function ProfileScreen({ navigation }: any) {
         throw new Error('Bild konnte nicht gelesen werden. Bitte versuche es erneut.');
       }
 
-      // Base64 → Uint8Array (ArrayBufferView wird vom Supabase-Client korrekt übertragen)
-      const byteCharacters = atob(base64);
-      const bytes = new Uint8Array(byteCharacters.length);
-      for (let i = 0; i < byteCharacters.length; i++) {
-        bytes[i] = byteCharacters.charCodeAt(i);
-      }
-
       const fileName = `avatar-${userId}-${Date.now()}.jpg`;
       const { error: uploadError } = await supabase.storage
         .from('avatars')
-        .upload(fileName, bytes, { contentType: 'image/jpeg', upsert: true });
+        .upload(fileName, decode(base64), { contentType: 'image/jpeg', upsert: true });
 
       if (uploadError) {
         // Supabase-Fehlermeldungen sind oft technisch — benutzerfreundlich übersetzen
@@ -573,11 +565,10 @@ export default function ProfileScreen({ navigation }: any) {
         <Text style={styles.signOutText}>Abmelden</Text>
       </TouchableOpacity>
 
-      {/* Gefahrenzone */}
       <View style={styles.dangerSection}>
-        <Text style={styles.dangerSectionTitle}>Gefahrenzone</Text>
+        <Text style={styles.dangerSectionTitle}>Konto</Text>
         <TouchableOpacity style={styles.deleteAccountBtn} onPress={confirmDeleteAccount}>
-          <Text style={styles.deleteAccountText}>🗑️  Konto löschen</Text>
+          <Text style={styles.deleteAccountText}>Konto löschen</Text>
         </TouchableOpacity>
       </View>
     </ScrollView>
@@ -818,15 +809,14 @@ function getStyles(theme: Theme) {
 
     dangerSection: { marginTop: 24, marginBottom: 8 },
     dangerSectionTitle: {
-      fontSize: 13, fontWeight: '600', color: theme.textTertiary,
-      marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.5,
+      fontSize: 12, color: theme.textSecondary,
+      marginBottom: 8, marginLeft: 4,
     },
     deleteAccountBtn: {
-      borderWidth: 1.5, borderColor: theme.danger, borderRadius: 12,
-      paddingVertical: 16, alignItems: 'center',
-      backgroundColor: theme.dangerBg,
+      borderWidth: 1, borderColor: '#FF3B30', borderRadius: 12,
+      padding: 16, alignItems: 'center', marginTop: 8,
     },
-    deleteAccountText: { color: theme.danger, fontSize: 16, fontWeight: '600' },
+    deleteAccountText: { color: '#FF3B30', fontWeight: '500', fontSize: 15 },
 
     deletingOverlay: {
       position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
