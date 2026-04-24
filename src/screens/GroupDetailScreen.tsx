@@ -305,7 +305,7 @@ export default function GroupDetailScreen({ route, navigation }: any) {
             {members.slice(0, 4).map((m, i) => (
               <View key={m.id} style={[styles.memberAvatar, { marginLeft: i > 0 ? -8 : 0 }]}>
                 <Text style={styles.memberAvatarText}>
-                  {(m as any).profile?.username?.charAt(0).toUpperCase() ?? '?'}
+                  {(m as any).profiles?.username?.charAt(0).toUpperCase() ?? '?'}
                 </Text>
               </View>
             ))}

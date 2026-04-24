@@ -74,6 +74,29 @@ const PAYMENT_METHOD_ICON: Record<string, string> = {
   TWINT: '💙', PayPal: '🔵', 'Banküberweisung': '🏦', Bar: '💵', Sonstiges: '✅',
 };
 
+function getGroupNetto(group: GroupData): Record<string, { name: string; byCurrency: Record<string, number> }> {
+  const result: Record<string, { name: string; byCurrency: Record<string, number> }> = {};
+  group.debts.forEach(entry => {
+    const total = entry.splits.reduce((s, sp) => s + sp.amount, 0);
+    if (!result[entry.payerId]) result[entry.payerId] = { name: entry.payerName, byCurrency: {} };
+    result[entry.payerId].byCurrency[entry.currency] =
+      (result[entry.payerId].byCurrency[entry.currency] ?? 0) - total;
+  });
+  group.credits.forEach(entry => {
+    const total = entry.splits.reduce((s, sp) => s + sp.amount, 0);
+    if (!result[entry.debtorId]) result[entry.debtorId] = { name: entry.debtorName, byCurrency: {} };
+    result[entry.debtorId].byCurrency[entry.currency] =
+      (result[entry.debtorId].byCurrency[entry.currency] ?? 0) + total;
+  });
+  Object.keys(result).forEach(id => {
+    Object.keys(result[id].byCurrency).forEach(cur => {
+      if (Math.abs(result[id].byCurrency[cur]) < 0.005) delete result[id].byCurrency[cur];
+    });
+    if (Object.keys(result[id].byCurrency).length === 0) delete result[id];
+  });
+  return result;
+}
+
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function SettleScreen() {
@@ -600,6 +623,35 @@ export default function SettleScreen() {
                         </View>
                       ))}
 
+                      {/* Netto pro Person in dieser Gruppe */}
+                      {(() => {
+                        const netto = getGroupNetto(group);
+                        const entries = Object.entries(netto);
+                        if (entries.length === 0) return null;
+                        return (
+                          <View style={styles.groupNettoBlock}>
+                            {entries.map(([personId, person]) =>
+                              Object.entries(person.byCurrency).map(([currency, amount]) => {
+                                const isPositive = amount > 0;
+                                return (
+                                  <View
+                                    key={`${personId}-${currency}`}
+                                    style={[styles.groupNettoRow, { backgroundColor: isPositive ? '#4CAF5018' : '#F4433618' }]}
+                                  >
+                                    <Text style={[styles.groupNettoLabel, { color: isPositive ? '#4CAF50' : '#F44336' }]}>
+                                      {isPositive ? `Netto: ${person.name} zahlt dir` : `Netto: Du zahlst ${person.name}`}
+                                    </Text>
+                                    <Text style={[styles.groupNettoAmount, { color: isPositive ? '#4CAF50' : '#F44336' }]}>
+                                      {isPositive ? '+' : ''}{amount.toFixed(2)} {currency}
+                                    </Text>
+                                  </View>
+                                );
+                              })
+                            )}
+                          </View>
+                        );
+                      })()}
+
                     </View>
                   )}
                 </View>
@@ -973,6 +1025,14 @@ function getStyles(theme: Theme) {
       padding: 10, alignItems: 'center', marginTop: 10,
     },
     settleBtnText: { color: '#fff', fontWeight: '600', fontSize: 14 },
+
+    groupNettoBlock: { marginTop: 12, borderTopWidth: 0.5, borderTopColor: theme.border, paddingTop: 8, gap: 6 },
+    groupNettoRow: {
+      flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+      borderRadius: 8, paddingVertical: 8, paddingHorizontal: 12,
+    },
+    groupNettoLabel: { fontSize: 13, fontWeight: '600' },
+    groupNettoAmount: { fontSize: 14, fontWeight: '700' },
 
     // Gesamttotal footer
     totalFooter: {

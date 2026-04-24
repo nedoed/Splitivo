@@ -16,6 +16,7 @@ import {
   Keyboard,
   Animated,
   PanResponder,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -136,9 +137,16 @@ function SwipeableGroupCard({
               <View style={styles.memberRow}>
                 {group.member_profiles.slice(0, 4).map((m, i) => (
                   <View key={i} style={[styles.miniAvatar, i > 0 && { marginLeft: -6 }]}>
-                    <Text style={styles.miniAvatarText}>
-                      {m.username?.[0]?.toUpperCase() ?? '?'}
-                    </Text>
+                    {(m as any).avatar_url ? (
+                      <Image
+                        source={{ uri: (m as any).avatar_url }}
+                        style={{ width: 22, height: 22, borderRadius: 11 }}
+                      />
+                    ) : (
+                      <Text style={styles.miniAvatarText}>
+                        {m.username?.[0]?.toUpperCase() ?? '?'}
+                      </Text>
+                    )}
                   </View>
                 ))}
                 <Text style={[styles.groupDesc, { marginLeft: 8, flex: 1 }]} numberOfLines={1}>
@@ -210,15 +218,18 @@ export default function GroupsScreen({ navigation }: any) {
     if (!error && data) {
       const { data: allMembers } = await supabase
         .from('group_members')
-        .select('group_id, profiles(username)')
+        .select('group_id, profiles(username, avatar_url)')
         .in('group_id', groupIds);
 
       const countMap: { [key: string]: number } = {};
-      const membersByGroup: { [key: string]: Array<{ username: string | null }> } = {};
+      const membersByGroup: { [key: string]: Array<{ username: string | null; avatar_url: string | null }> } = {};
       (allMembers as any[])?.forEach((m) => {
         countMap[m.group_id] = (countMap[m.group_id] || 0) + 1;
         if (!membersByGroup[m.group_id]) membersByGroup[m.group_id] = [];
-        membersByGroup[m.group_id].push({ username: m.profiles?.username ?? null });
+        membersByGroup[m.group_id].push({
+          username: m.profiles?.username ?? null,
+          avatar_url: m.profiles?.avatar_url ?? null,
+        });
       });
 
       setGroups(
