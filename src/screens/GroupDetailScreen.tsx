@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
   ActivityIndicator, RefreshControl, Alert, Modal, TextInput,
@@ -34,6 +34,28 @@ export default function GroupDetailScreen({ route, navigation }: any) {
 
   const { theme } = useTheme();
   const styles = getStyles(theme);
+  const channelRef = useRef<any>(null);
+
+  const loadMembers = async () => {
+    const { data, error } = await supabase
+      .from('group_members')
+      .select(`
+        id,
+        user_id,
+        joined_at,
+        profiles (
+          id,
+          username,
+          avatar_url,
+          email
+        )
+      `)
+      .eq('group_id', group.id);
+
+    if (!error && data) {
+      setMembers(data as any);
+    }
+  };
 
   const fetchData = async () => {
     const { data: user } = await supabase.auth.getUser();
@@ -41,49 +63,34 @@ export default function GroupDetailScreen({ route, navigation }: any) {
 
     const { data: expensesData } = await supabase
       .from('expenses')
-      .select('*')
+      .select('*, payer:profiles!paid_by(id, username)')
       .eq('group_id', group.id)
       .order('date', { ascending: false });
 
-    const { data: membersData } = await supabase
-      .from('group_members')
-      .select('*')
-      .eq('group_id', group.id);
+    if (expensesData) setExpenses(expensesData as any);
 
-    if (expensesData && membersData) {
-      const userIds = [
-        ...new Set([
-          ...membersData.map((m) => m.user_id),
-          ...expensesData.map((e) => e.paid_by).filter(Boolean),
-        ]),
-      ];
-
-      const { data: profiles } = userIds.length > 0
-        ? await supabase.from('profiles').select('*').in('id', userIds)
-        : { data: [] };
-
-      const profileMap: { [id: string]: any } = {};
-      profiles?.forEach((p) => { profileMap[p.id] = p; });
-
-      const enrichedExpenses = expensesData.map((e) => ({
-        ...e,
-        payer: profileMap[e.paid_by] ?? null,
-      }));
-
-      const enrichedMembers = membersData.map((m) => ({
-        ...m,
-        profile: profileMap[m.user_id] ?? null,
-      }));
-
-      setExpenses(enrichedExpenses as any);
-      setMembers(enrichedMembers as any);
-    }
+    await loadMembers();
 
     setLoading(false);
     setRefreshing(false);
   };
 
   useFocusEffect(useCallback(() => { fetchData(); }, []));
+
+  useEffect(() => {
+    channelRef.current = supabase
+      .channel(`group_members_${group.id}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'group_members', filter: `group_id=eq.${group.id}` },
+        () => { loadMembers(); }
+      )
+      .subscribe();
+
+    return () => {
+      if (channelRef.current) supabase.removeChannel(channelRef.current);
+    };
+  }, [group.id]);
 
   const openInviteModal = async () => {
     setInviteModal(true);
@@ -98,7 +105,7 @@ export default function GroupDetailScreen({ route, navigation }: any) {
     const memberUserIds = members.map((m) => m.user_id);
     const available = (friendships ?? [])
       .map((f) => f.friend)
-      .filter((f): f is any => !!f && !memberUserIds.includes(f.id));
+      .filter((f: any) => !!f && !memberUserIds.includes(f.id));
 
     setFriendsForInvite(available);
   };
@@ -131,7 +138,7 @@ export default function GroupDetailScreen({ route, navigation }: any) {
       haptics.success();
       setInviteModal(false);
       setFriendsForInvite([]);
-      fetchData();
+      await loadMembers();
     }
     setAddingFriendId(null);
   };
@@ -222,11 +229,11 @@ export default function GroupDetailScreen({ route, navigation }: any) {
     } else {
       await addFriend(profile.id);
       haptics.success();
-      Alert.alert('✓ Hinzugefügt', `${profile.username} wurde zur Gruppe hinzugefügt!`);
       setInviteEmail('');
       setInviteModal(false);
       setFriendsForInvite([]);
-      fetchData();
+      await loadMembers();
+      Alert.alert('✓ Hinzugefügt', `${profile.username} wurde zur Gruppe hinzugefügt!`);
     }
     setInviting(false);
   };
@@ -244,6 +251,25 @@ export default function GroupDetailScreen({ route, navigation }: any) {
   const totalExpensesLabel = Object.entries(totalByCurrency)
     .map(([cur, amt]) => `${amt.toFixed(2)} ${cur}`)
     .join(' + ') || '0.00 CHF';
+
+  const renderMembersHeader = () => (
+    <View style={styles.membersSection}>
+      <Text style={styles.membersSectionTitle}>Mitglieder ({members.length})</Text>
+      {members.map((m: any) => (
+        <View key={m.id} style={styles.memberRow}>
+          <View style={styles.memberRowAvatar}>
+            <Text style={styles.memberRowAvatarText}>
+              {m.profiles?.username?.charAt(0).toUpperCase() ?? '?'}
+            </Text>
+          </View>
+          <Text style={styles.memberRowName}>
+            {m.profiles?.username ?? 'Unbekannt'}
+            {m.user_id === currentUserId ? '  (Du)' : ''}
+          </Text>
+        </View>
+      ))}
+    </View>
+  );
 
   const renderExpense = ({ item }: { item: Expense }) => (
     <TouchableOpacity
@@ -308,18 +334,29 @@ export default function GroupDetailScreen({ route, navigation }: any) {
           <ActivityIndicator size="large" color={theme.primary} />
         </View>
       ) : expenses.length === 0 ? (
-        <EmptyState
-          emoji="💸"
-          title="Erste Ausgabe erfassen"
-          subtitle={"Tippe auf + um die erste\nAusgabe dieser Gruppe hinzuzufügen"}
-          buttonText="Ausgabe hinzufügen"
-          onButtonPress={() => navigation.navigate('AddExpense', { group, members })}
+        <FlatList
+          data={[]}
+          keyExtractor={(item: any) => item.id}
+          renderItem={null}
+          ListHeaderComponent={renderMembersHeader}
+          ListEmptyComponent={
+            <EmptyState
+              emoji="💸"
+              title="Erste Ausgabe erfassen"
+              subtitle={"Tippe auf + um die erste\nAusgabe dieser Gruppe hinzuzufügen"}
+              buttonText="Ausgabe hinzufügen"
+              onButtonPress={() => navigation.navigate('AddExpense', { group, members })}
+            />
+          }
+          contentContainerStyle={styles.list}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchData(); }} tintColor={theme.primary} />}
         />
       ) : (
         <FlatList
           data={expenses}
           keyExtractor={(item) => item.id}
           renderItem={renderExpense}
+          ListHeaderComponent={renderMembersHeader}
           contentContainerStyle={styles.list}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchData(); }} tintColor={theme.primary} />}
         />
@@ -459,6 +496,25 @@ function getStyles(theme: Theme) {
     expensePayer: { fontSize: 12, color: theme.textSecondary, marginTop: 2 },
     expenseAmount: { fontSize: 16, fontWeight: '700', color: theme.primary },
     expenseChevron: { fontSize: 16, color: theme.border, marginTop: 2 },
+    membersSection: { marginBottom: 16 },
+    membersSectionTitle: {
+      fontSize: 12, fontWeight: '700', color: theme.textSecondary,
+      textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8,
+    },
+    memberRow: {
+      flexDirection: 'row', alignItems: 'center',
+      backgroundColor: theme.card, borderRadius: 12,
+      padding: 12, marginBottom: 8, gap: 12,
+      shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.05, shadowRadius: 4, elevation: 1,
+    },
+    memberRowAvatar: {
+      width: 40, height: 40, borderRadius: 20,
+      backgroundColor: theme.primaryLight,
+      justifyContent: 'center', alignItems: 'center',
+    },
+    memberRowAvatarText: { fontSize: 16, fontWeight: '700', color: theme.primary },
+    memberRowName: { fontSize: 15, fontWeight: '500', color: theme.text, flex: 1 },
     modalOverlay: { flex: 1, backgroundColor: theme.overlay, justifyContent: 'flex-end' },
     modalCard: { backgroundColor: theme.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24 },
     modalTitle: { fontSize: 20, fontWeight: '700', color: theme.text, marginBottom: 12 },

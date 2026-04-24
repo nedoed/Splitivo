@@ -90,6 +90,7 @@ export default function SettleScreen() {
   const [activeTab, setActiveTab] = useState<'offen' | 'historie'>('offen');
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [reopeningId, setReopeningId] = useState<string | null>(null);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
@@ -123,6 +124,31 @@ export default function SettleScreen() {
     () => Object.values(groupedData).some(g => g.debts.length > 0 || g.credits.length > 0),
     [groupedData]
   );
+
+  const nettoByPerson = useMemo(() => {
+    const result: Record<string, { name: string; byCurrency: Record<string, number> }> = {};
+    Object.values(groupedData).forEach(group => {
+      group.debts.forEach(entry => {
+        const total = entry.splits.reduce((s, sp) => s + sp.amount, 0);
+        if (!result[entry.payerId]) result[entry.payerId] = { name: entry.payerName, byCurrency: {} };
+        result[entry.payerId].byCurrency[entry.currency] =
+          (result[entry.payerId].byCurrency[entry.currency] ?? 0) - total;
+      });
+      group.credits.forEach(entry => {
+        const total = entry.splits.reduce((s, sp) => s + sp.amount, 0);
+        if (!result[entry.debtorId]) result[entry.debtorId] = { name: entry.debtorName, byCurrency: {} };
+        result[entry.debtorId].byCurrency[entry.currency] =
+          (result[entry.debtorId].byCurrency[entry.currency] ?? 0) + total;
+      });
+    });
+    Object.keys(result).forEach(id => {
+      Object.keys(result[id].byCurrency).forEach(cur => {
+        if (Math.abs(result[id].byCurrency[cur]) < 0.005) delete result[id].byCurrency[cur];
+      });
+      if (Object.keys(result[id].byCurrency).length === 0) delete result[id];
+    });
+    return result;
+  }, [groupedData]);
 
   // ── History filter computations ──────────────────────────────────────────────
   const uniqueGroups = useMemo(() => [
@@ -287,6 +313,37 @@ export default function SettleScreen() {
       .limit(50);
     setHistory((data as HistoryItem[] | null) ?? []);
     setHistoryLoading(false);
+  };
+
+  const reopenDebt = async (splitId: string) => {
+    setReopeningId(splitId);
+    try {
+      const { error } = await supabase
+        .from('expense_splits')
+        .update({ is_settled: false, settled_at: null, payment_method: null })
+        .eq('id', splitId);
+      if (error) throw error;
+      haptics.success();
+      await loadHistory();
+      fetchDebts();
+      Alert.alert('Erledigt', 'Die Zahlung wurde als offen markiert und erscheint wieder im Offen-Tab.');
+    } catch (err: any) {
+      haptics.error();
+      Alert.alert('Fehler', err.message);
+    } finally {
+      setReopeningId(null);
+    }
+  };
+
+  const confirmReopenDebt = (item: HistoryItem) => {
+    Alert.alert(
+      'Zahlung rückgängig machen?',
+      `Möchtest du die Zahlung von ${item.amount.toFixed(2)} ${item.expense?.currency ?? 'CHF'} wieder als offen markieren?\n\nSie erscheint dann wieder im Offen-Tab.`,
+      [
+        { text: 'Abbrechen', style: 'cancel' },
+        { text: 'Als offen markieren', style: 'destructive', onPress: () => reopenDebt(item.id) },
+      ]
+    );
   };
 
   useFocusEffect(useCallback(() => {
@@ -548,6 +605,34 @@ export default function SettleScreen() {
                 </View>
               ))}
 
+              {/* Netto pro Person */}
+              {Object.keys(nettoByPerson).length > 0 && (
+                <View style={styles.nettoCard}>
+                  <Text style={styles.nettoCardTitle}>Netto pro Person</Text>
+                  {Object.entries(nettoByPerson).map(([personId, person]) => (
+                    <View key={personId} style={styles.nettoPersonBlock}>
+                      <Text style={styles.nettoPersonName}>{person.name}</Text>
+                      {Object.entries(person.byCurrency).map(([currency, amount]) => {
+                        const isPositive = amount > 0;
+                        return (
+                          <View
+                            key={currency}
+                            style={[styles.nettoRow, { backgroundColor: isPositive ? '#4CAF5018' : '#F4433618' }]}
+                          >
+                            <Text style={[styles.nettoLabel, { color: isPositive ? '#4CAF50' : '#F44336' }]}>
+                              {isPositive ? `${person.name} zahlt dir` : `Du zahlst ${person.name}`}
+                            </Text>
+                            <Text style={[styles.nettoAmount, { color: isPositive ? '#4CAF50' : '#F44336' }]}>
+                              {Math.abs(amount).toFixed(2)} {currency}
+                            </Text>
+                          </View>
+                        );
+                      })}
+                    </View>
+                  ))}
+                </View>
+              )}
+
               <View style={{ height: 16 }} />
             </ScrollView>
 
@@ -576,6 +661,26 @@ export default function SettleScreen() {
                   )}
                 </View>
               </View>
+              {/* Netto Gesamttotal */}
+              <View style={styles.footerNetto}>
+                <Text style={styles.footerNettoTitle}>Netto</Text>
+                {[...new Set([...Object.keys(totalOweByCurrency), ...Object.keys(totalOwedByCurrency)])].map(currency => {
+                  const owe = totalOweByCurrency[currency] ?? 0;
+                  const owed = totalOwedByCurrency[currency] ?? 0;
+                  const netto = owed - owe;
+                  return (
+                    <View key={currency} style={styles.footerNettoRow}>
+                      <Text style={[styles.footerNettoLabel, { color: netto >= 0 ? '#4CAF50' : '#F44336' }]}>
+                        {currency}
+                      </Text>
+                      <Text style={[styles.footerNettoValue, { color: netto >= 0 ? '#4CAF50' : '#F44336' }]}>
+                        {netto >= 0 ? '+' : ''}{netto.toFixed(2)} {currency}
+                      </Text>
+                    </View>
+                  );
+                })}
+              </View>
+
               {exchangeRate !== null && hasMultiCurrency && (
                 <View style={styles.totalConverted}>
                   <Text style={styles.totalConvertedText}>
@@ -720,38 +825,53 @@ export default function SettleScreen() {
                         : '';
                       return (
                         <View key={item.id} style={styles.historyCard}>
-                          <View style={styles.historyIcon}>
-                            <Text style={{ fontSize: 22 }}>{icon}</Text>
-                          </View>
-                          <View style={styles.historyInfo}>
-                            <Text style={styles.historyDesc} numberOfLines={1}>
-                              {item.expense?.description ?? '–'}
-                            </Text>
-                            <Text style={styles.historyMeta}>
-                              {item.expense?.group?.name ? `${item.expense.group.name} · ` : ''}
-                              {item.payment_method ?? 'Sonstiges'}
-                            </Text>
-                            <View style={styles.historyFlow}>
-                              <View style={styles.historyMiniAvatar}>
-                                <Text style={styles.historyMiniAvatarText}>
-                                  {item.debtor?.username?.[0]?.toUpperCase() ?? '?'}
-                                </Text>
-                              </View>
-                              <Text style={styles.historyArrow}>→</Text>
-                              <View style={[styles.historyMiniAvatar, styles.historyMiniAvatarGreen]}>
-                                <Text style={styles.historyMiniAvatarText}>
-                                  {item.expense?.payer?.username?.[0]?.toUpperCase() ?? '?'}
-                                </Text>
-                              </View>
-                              <Text style={styles.historyFlowNames}>
-                                {item.debtor?.username ?? '–'} → {item.expense?.payer?.username ?? '–'}
-                              </Text>
+                          <View style={styles.historyCardMain}>
+                            <View style={styles.historyIcon}>
+                              <Text style={{ fontSize: 22 }}>{icon}</Text>
                             </View>
-                            <Text style={styles.historyDate}>{settledDate}</Text>
+                            <View style={styles.historyInfo}>
+                              <Text style={styles.historyDesc} numberOfLines={1}>
+                                {item.expense?.description ?? '–'}
+                              </Text>
+                              <Text style={styles.historyMeta}>
+                                {item.expense?.group?.name ? `${item.expense.group.name} · ` : ''}
+                                {item.payment_method ?? 'Sonstiges'}
+                              </Text>
+                              <View style={styles.historyFlow}>
+                                <View style={styles.historyMiniAvatar}>
+                                  <Text style={styles.historyMiniAvatarText}>
+                                    {item.debtor?.username?.[0]?.toUpperCase() ?? '?'}
+                                  </Text>
+                                </View>
+                                <Text style={styles.historyArrow}>→</Text>
+                                <View style={[styles.historyMiniAvatar, styles.historyMiniAvatarGreen]}>
+                                  <Text style={styles.historyMiniAvatarText}>
+                                    {item.expense?.payer?.username?.[0]?.toUpperCase() ?? '?'}
+                                  </Text>
+                                </View>
+                                <Text style={styles.historyFlowNames}>
+                                  {item.debtor?.username ?? '–'} → {item.expense?.payer?.username ?? '–'}
+                                </Text>
+                              </View>
+                              <Text style={styles.historyDate}>{settledDate}</Text>
+                            </View>
+                            <Text style={styles.historyAmount}>
+                              {item.amount.toFixed(2)} {item.expense?.currency ?? 'CHF'}
+                            </Text>
                           </View>
-                          <Text style={styles.historyAmount}>
-                            {item.amount.toFixed(2)} {item.expense?.currency ?? 'CHF'}
-                          </Text>
+                          <TouchableOpacity
+                            style={styles.reopenBtn}
+                            onPress={() => confirmReopenDebt(item)}
+                            disabled={reopeningId === item.id}
+                            activeOpacity={0.7}
+                          >
+                            {reopeningId === item.id ? (
+                              <ActivityIndicator size="small" color={theme.textSecondary} />
+                            ) : (
+                              <Ionicons name="arrow-undo-outline" size={14} color={theme.textSecondary} />
+                            )}
+                            <Text style={styles.reopenBtnText}>Als offen markieren</Text>
+                          </TouchableOpacity>
                         </View>
                       );
                     })}
@@ -868,6 +988,28 @@ function getStyles(theme: Theme) {
     totalConvertedText: { fontWeight: '700', color: theme.text, fontSize: 14 },
     totalConvertedSub: { color: theme.textSecondary, fontSize: 11, marginTop: 2 },
 
+    footerNetto: { borderTopWidth: 0.5, borderTopColor: theme.border, marginTop: 8, paddingTop: 8 },
+    footerNettoTitle: { fontWeight: '700', color: theme.text, fontSize: 13, marginBottom: 4 },
+    footerNettoRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 2 },
+    footerNettoLabel: { fontSize: 13 },
+    footerNettoValue: { fontWeight: '700', fontSize: 13 },
+
+    nettoCard: {
+      backgroundColor: theme.card, borderRadius: 16,
+      marginBottom: 12, padding: 16,
+      shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.06, shadowRadius: 8, elevation: 2,
+    },
+    nettoCardTitle: { fontWeight: '700', fontSize: 16, color: theme.text, marginBottom: 12 },
+    nettoPersonBlock: { marginBottom: 10 },
+    nettoPersonName: { fontSize: 14, fontWeight: '600', color: theme.text, marginBottom: 4 },
+    nettoRow: {
+      flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+      paddingVertical: 7, paddingHorizontal: 12, borderRadius: 8, marginTop: 4,
+    },
+    nettoLabel: { fontSize: 13 },
+    nettoAmount: { fontWeight: '700', fontSize: 14 },
+
     // Filter panel
     filterPanel: {
       backgroundColor: theme.card, borderRadius: 14, padding: 14, marginBottom: 12, gap: 10,
@@ -897,9 +1039,15 @@ function getStyles(theme: Theme) {
     monthTotal: { fontSize: 12, fontWeight: '600', color: theme.success },
     historyCard: {
       backgroundColor: theme.card, borderRadius: 12, padding: 14, marginBottom: 8,
-      flexDirection: 'row', alignItems: 'flex-start', gap: 12,
       shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 1,
     },
+    historyCardMain: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+    reopenBtn: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+      marginTop: 10, paddingTop: 10, gap: 6,
+      borderTopWidth: 0.5, borderTopColor: theme.border,
+    },
+    reopenBtnText: { color: theme.textSecondary, fontSize: 12 },
     historyIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: theme.successBg, justifyContent: 'center', alignItems: 'center', flexShrink: 0 },
     historyInfo: { flex: 1 },
     historyDesc: { fontSize: 15, fontWeight: '600', color: theme.text },
