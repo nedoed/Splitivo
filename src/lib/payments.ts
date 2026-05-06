@@ -69,6 +69,44 @@ export const payWithPayPal = async (recipientId: string): Promise<boolean> => {
   return true;
 };
 
+export const payWithWero = async (): Promise<boolean> => {
+  const schemes = ['wero://', 'fr.laposte.wero://'];
+
+  for (const scheme of schemes) {
+    try {
+      const canOpen = await Linking.canOpenURL(scheme);
+      if (canOpen) {
+        await Linking.openURL(scheme);
+        haptics.success();
+        return true;
+      }
+    } catch (e) {
+      console.log('WERO scheme error:', e);
+    }
+  }
+
+  return new Promise((resolve) => {
+    Alert.alert(
+      'WERO nicht installiert',
+      'Möchtest du WERO installieren?\n\nWERO ist die kostenlose Bezahl-App für Deutschland, Österreich und Frankreich.',
+      [
+        { text: 'Abbrechen', style: 'cancel', onPress: () => resolve(false) },
+        {
+          text: 'Installieren',
+          onPress: () => {
+            Linking.openURL(
+              Platform.OS === 'ios'
+                ? 'https://apps.apple.com/de/app/wero/id6447228783'
+                : 'https://play.google.com/store/apps/details?id=fr.laposte.wero'
+            );
+            resolve(false);
+          },
+        },
+      ]
+    );
+  });
+};
+
 export const showBankDetails = async (userId: string): Promise<boolean> => {
   const { data: profile } = await supabase
     .from('profiles')

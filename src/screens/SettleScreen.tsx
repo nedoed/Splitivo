@@ -9,7 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../lib/supabase';
 import { notifyUser } from '../lib/notifications';
 import { haptics } from '../lib/haptics';
-import { payWithTwint, payWithPayPal, showBankDetails } from '../lib/payments';
+import { payWithTwint, payWithWero, payWithPayPal, showBankDetails } from '../lib/payments';
 import EmptyState from '../components/EmptyState';
 import { useTheme } from '../lib/ThemeContext';
 import { Theme } from '../lib/theme';
@@ -71,7 +71,7 @@ interface HistoryItem {
 }
 
 const PAYMENT_METHOD_ICON: Record<string, string> = {
-  TWINT: '💙', PayPal: '🔵', 'Banküberweisung': '🏦', Bar: '💵', Sonstiges: '✅',
+  TWINT: '💙', WERO: '🟣', PayPal: '🔵', 'Banküberweisung': '🏦', Bar: '💵', Sonstiges: '✅',
 };
 
 function getGroupNetto(group: GroupData): Record<string, { name: string; byCurrency: Record<string, number> }> {
@@ -418,6 +418,13 @@ export default function SettleScreen() {
           onPress: async () => {
             const opened = await payWithTwint();
             if (opened) askSettled(entry, 'TWINT');
+          },
+        },
+        {
+          text: '🟣 WERO',
+          onPress: async () => {
+            const opened = await payWithWero();
+            if (opened) askSettled(entry, 'WERO');
           },
         },
         {
