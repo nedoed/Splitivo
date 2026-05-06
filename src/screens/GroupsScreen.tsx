@@ -12,6 +12,7 @@ import {
   RefreshControl,
   KeyboardAvoidingView,
   Platform,
+  StatusBar,
   TouchableWithoutFeedback,
   Keyboard,
   Animated,
@@ -328,8 +329,14 @@ export default function GroupsScreen({ navigation }: any) {
   );
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={[styles.header, { paddingRight: Math.max(20, rightInset + 16) }]}>
+    <SafeAreaView style={styles.container} edges={Platform.OS === 'ios' ? ['top'] : []}>
+      <View style={[
+        styles.header,
+        {
+          paddingRight: Platform.select({ ios: 20, android: Math.max(20, rightInset + 20) }),
+          paddingTop: Platform.select({ ios: 12, android: (StatusBar.currentHeight ?? 0) + 8 }),
+        },
+      ]}>
         <Text style={styles.title}>Meine Gruppen</Text>
         <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
           <TouchableOpacity
@@ -473,7 +480,7 @@ function getStyles(theme: Theme) {
     container: { flex: 1, backgroundColor: theme.background },
     header: {
       flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-      paddingLeft: 20, paddingRight: 20, paddingVertical: 12,
+      paddingLeft: 20, paddingRight: 20, paddingBottom: 12,
     },
     title: { fontSize: 24, fontWeight: '700', color: theme.text },
     addBtn: { backgroundColor: theme.primary, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20 },

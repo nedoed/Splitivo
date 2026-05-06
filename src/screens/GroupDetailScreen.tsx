@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
   ActivityIndicator, RefreshControl, Alert, Modal, TextInput,
@@ -40,7 +40,6 @@ export default function GroupDetailScreen({ route, navigation }: any) {
 
   const { theme } = useTheme();
   const styles = getStyles(theme);
-  const channelRef = useRef<any>(null);
 
   const loadMembers = async () => {
     const { data, error } = await supabase
@@ -84,7 +83,7 @@ export default function GroupDetailScreen({ route, navigation }: any) {
   useFocusEffect(useCallback(() => { fetchData(); }, []));
 
   useEffect(() => {
-    channelRef.current = supabase
+    const channel = supabase
       .channel(`group_members_${group.id}`)
       .on(
         'postgres_changes',
@@ -94,7 +93,7 @@ export default function GroupDetailScreen({ route, navigation }: any) {
       .subscribe();
 
     return () => {
-      if (channelRef.current) supabase.removeChannel(channelRef.current);
+      supabase.removeChannel(channel);
     };
   }, [group.id]);
 
