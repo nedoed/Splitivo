@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   Modal, Alert, ActivityIndicator, TextInput, TouchableWithoutFeedback,
@@ -74,6 +74,7 @@ export default function ReceiptSplitScreen({ route, navigation }: any) {
 
   const { theme } = useTheme();
   const styles = getStyles(theme);
+  const scrollRef = useRef<ScrollView>(null);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
@@ -141,8 +142,12 @@ export default function ReceiptSplitScreen({ route, navigation }: any) {
     };
     setItems((prev) => [...prev, newItem]);
     setItemPriceTexts((prev) => [...prev, total.toFixed(2)]);
+    setNewItemName('');
+    setNewItemPrice('');
+    setNewItemQuantity('1');
     haptics.success();
     setShowAddModal(false);
+    setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
   };
 
   const removeItem = (index: number) => {
@@ -167,12 +172,12 @@ export default function ReceiptSplitScreen({ route, navigation }: any) {
   const getAssignedName = (assignedTo: string) => {
     if (assignedTo === 'all') return 'Alle teilen';
     const m = members.find((m) => m.user_id === assignedTo);
-    return (m as any)?.profile?.username ?? 'Unbekannt';
+    return (m as any)?.profiles?.username ?? 'Unbekannt';
   };
 
   const getPaidByName = () => {
     const m = members.find((m) => m.user_id === paidBy);
-    return (m as any)?.profile?.username ?? 'Auswählen...';
+    return (m as any)?.profiles?.username ?? 'Auswählen...';
   };
 
   const handleSave = async () => {
@@ -269,7 +274,7 @@ export default function ReceiptSplitScreen({ route, navigation }: any) {
         <Text style={styles.headerSub}>{items.length} Positionen</Text>
       </View>
 
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+      <ScrollView ref={scrollRef} style={styles.scroll} contentContainerStyle={styles.scrollContent}>
         {/* Positionen */}
         <Text style={styles.sectionTitle}>POSITIONEN</Text>
         {items.map((item, index) => (
@@ -322,7 +327,7 @@ export default function ReceiptSplitScreen({ route, navigation }: any) {
         <View style={styles.summaryCard}>
           {members.map((m) => {
             const amount = splits[m.user_id] ?? 0;
-            const name = (m as any).profile?.username ?? 'Unbekannt';
+            const name = (m as any).profiles?.username ?? 'Unbekannt';
             return (
               <View key={m.user_id} style={styles.summaryRow}>
                 <View style={styles.summaryAvatar}>
@@ -383,7 +388,7 @@ export default function ReceiptSplitScreen({ route, navigation }: any) {
             </TouchableOpacity>
             {/* Pro Mitglied */}
             {members.map((m) => {
-              const name = (m as any).profile?.username ?? 'Unbekannt';
+              const name = (m as any).profiles?.username ?? 'Unbekannt';
               const isSelected = activeItem?.assignedTo === m.user_id;
               return (
                 <TouchableOpacity
@@ -468,7 +473,7 @@ export default function ReceiptSplitScreen({ route, navigation }: any) {
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>Wer hat bezahlt?</Text>
             {members.map((m) => {
-              const name = (m as any).profile?.username ?? 'Unbekannt';
+              const name = (m as any).profiles?.username ?? 'Unbekannt';
               const isSelected = paidBy === m.user_id;
               return (
                 <TouchableOpacity
