@@ -18,7 +18,7 @@ import {
   PanResponder,
   Image,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { supabase } from '../lib/supabase';
 import { haptics } from '../lib/haptics';
@@ -188,6 +188,7 @@ export default function GroupsScreen({ navigation }: any) {
 
   const { theme } = useTheme();
   const styles = getStyles(theme);
+  const { right: rightInset } = useSafeAreaInsets();
 
   const fetchGroups = async () => {
     const { data: sessionData } = await supabase.auth.getSession();
@@ -328,9 +329,9 @@ export default function GroupsScreen({ navigation }: any) {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingRight: Math.max(20, rightInset + 16) }]}>
         <Text style={styles.title}>Meine Gruppen</Text>
-        <View style={{ flexDirection: 'row', gap: 8 }}>
+        <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
           <TouchableOpacity
             style={styles.codeBtn}
             onPress={() => { haptics.light(); setCodeModal(true); }}
@@ -475,7 +476,7 @@ function getStyles(theme: Theme) {
       paddingLeft: 20, paddingRight: 20, paddingVertical: 12,
     },
     title: { fontSize: 24, fontWeight: '700', color: theme.text },
-    addBtn: { backgroundColor: theme.primary, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, marginRight: 4 },
+    addBtn: { backgroundColor: theme.primary, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20 },
     addBtnText: { color: '#fff', fontWeight: '600', fontSize: 14 },
     codeBtn: { borderWidth: 1.5, borderColor: theme.primary, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20 },
     codeBtnText: { color: theme.primary, fontWeight: '600', fontSize: 14 },
