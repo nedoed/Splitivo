@@ -277,7 +277,7 @@ Erkenne alle einzelnen Positionen auf dem Kassenbon.`,
         group.id,
         paidBy,
         'Neue Ausgabe 💸',
-        `${payerName} hat „${description.trim()}" (${numAmount.toFixed(2)} €) erfasst.`
+        `${payerName} hat „${description.trim()}" (${currency} ${numAmount.toFixed(2)}) erfasst.`
       );
 
       haptics.success();
@@ -436,10 +436,10 @@ Erkenne alle einzelnen Positionen auf dem Kassenbon.`,
           <View style={styles.splitPreview}>
             <Text style={styles.splitPreviewLabel}>Aufteilung</Text>
             <Text style={styles.splitPreviewAmount}>
-              {splitAmount.toFixed(2)} {currency} pro Person
+              {currency} {splitAmount.toFixed(2)} pro Person
             </Text>
             <Text style={styles.splitPreviewSub}>
-              {selectedMembers.length} Person{selectedMembers.length !== 1 ? 'en' : ''} • Gesamt {parseFloat(amount.replace(',', '.')).toFixed(2)} {currency}
+              {selectedMembers.length} Person{selectedMembers.length !== 1 ? 'en' : ''} • Gesamt {currency} {parseFloat(amount.replace(',', '.')).toFixed(2)}
             </Text>
           </View>
         )}

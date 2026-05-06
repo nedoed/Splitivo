@@ -260,7 +260,7 @@ export default function GroupDetailScreen({ route, navigation }: any) {
   }, {} as Record<string, number>);
 
   const totalExpensesLabel = Object.entries(totalByCurrency)
-    .map(([cur, amt]) => `${amt.toFixed(2)} ${cur}`)
+    .map(([cur, amt]) => `${cur} ${amt.toFixed(2)}`)
     .join(' + ') || '0.00 CHF';
 
   const renderMembersHeader = () => (
@@ -330,7 +330,7 @@ export default function GroupDetailScreen({ route, navigation }: any) {
         </Text>
       </View>
       <View style={{ alignItems: 'flex-end' }}>
-        <Text style={styles.expenseAmount}>{item.amount.toFixed(2)} {(item as any).currency ?? 'CHF'}</Text>
+        <Text style={styles.expenseAmount}>{(item as any).currency ?? 'CHF'} {item.amount.toFixed(2)}</Text>
         <Text style={styles.expenseChevron}>›</Text>
       </View>
     </TouchableOpacity>

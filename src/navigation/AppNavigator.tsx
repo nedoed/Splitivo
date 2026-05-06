@@ -2,6 +2,7 @@ import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 import { Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { haptics } from '../lib/haptics';
 import { useTheme } from '../lib/ThemeContext';
@@ -70,6 +71,7 @@ function GroupsStack() {
 
 export default function AppNavigator() {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
 
   return (
     <Tab.Navigator
@@ -92,14 +94,14 @@ export default function AppNavigator() {
           shadowOpacity: 0.06,
           shadowRadius: 12,
           elevation: 10,
-          height: Platform.select({ ios: 80, android: 65 }),
-          paddingTop: Platform.select({ ios: 0, android: 8 }),
-          paddingBottom: Platform.select({ ios: 20, android: 10 }),
+          height: Platform.select({ ios: 80, android: 60 + insets.bottom }),
+          paddingTop: 8,
+          paddingBottom: Platform.select({ ios: 20, android: insets.bottom + 4 }),
         },
         tabBarLabelStyle: {
           fontSize: 10,
           fontWeight: '600',
-          marginBottom: Platform.select({ ios: 0, android: 4 }),
+          marginBottom: Platform.select({ ios: 0, android: 2 }),
         },
         headerShown: false,
       })}

@@ -361,7 +361,7 @@ export default function SettleScreen() {
   const confirmReopenDebt = (item: HistoryItem) => {
     Alert.alert(
       'Zahlung rückgängig machen?',
-      `Möchtest du die Zahlung von ${item.amount.toFixed(2)} ${item.expense?.currency ?? 'CHF'} wieder als offen markieren?\n\nSie erscheint dann wieder im Offen-Tab.`,
+      `Möchtest du die Zahlung von ${item.expense?.currency ?? 'CHF'} ${item.amount.toFixed(2)} wieder als offen markieren?\n\nSie erscheint dann wieder im Offen-Tab.`,
       [
         { text: 'Abbrechen', style: 'cancel' },
         { text: 'Als offen markieren', style: 'destructive', onPress: () => reopenDebt(item.id) },
@@ -386,7 +386,7 @@ export default function SettleScreen() {
     if (toUserId) {
       const total = splits.reduce((s, sp) => s + sp.amount, 0);
       const currency = splits[0]?.expenses?.currency ?? 'CHF';
-      notifyUser(toUserId, 'Schuld beglichen ✅', `${total.toFixed(2)} ${currency} wurde als bezahlt markiert.`);
+      notifyUser(toUserId, 'Schuld beglichen ✅', `${currency} ${total.toFixed(2)} wurde als bezahlt markiert.`);
     }
     fetchDebts();
     loadHistory();
@@ -410,7 +410,7 @@ export default function SettleScreen() {
     haptics.warning();
     Alert.alert(
       'Alle begleichen',
-      `${total.toFixed(2)} ${entry.currency} an ${entry.payerName} — Wie bezahlen?`,
+      `${entry.currency} ${total.toFixed(2)} an ${entry.payerName} — Wie bezahlen?`,
       [
         { text: 'Abbrechen', style: 'cancel' },
         {
@@ -646,10 +646,10 @@ export default function SettleScreen() {
                                     style={[styles.groupNettoRow, { backgroundColor: isPositive ? '#4CAF5018' : '#F4433618' }]}
                                   >
                                     <Text style={[styles.groupNettoLabel, { color: isPositive ? '#4CAF50' : '#F44336' }]}>
-                                      {isPositive ? `Netto: ${person.name} zahlt dir` : `Netto: Du zahlst ${person.name}`}
+                                      {isPositive ? `Netto: ${person.name} zahlt dir:` : `Netto: Du zahlst ${person.name}:`}
                                     </Text>
                                     <Text style={[styles.groupNettoAmount, { color: isPositive ? '#4CAF50' : '#F44336' }]}>
-                                      {isPositive ? '+' : ''}{amount.toFixed(2)} {currency}
+                                      {isPositive ? '+' : ''}{currency} {Math.abs(amount).toFixed(2)}
                                     </Text>
                                   </View>
                                 );
@@ -679,10 +679,10 @@ export default function SettleScreen() {
                             style={[styles.nettoRow, { backgroundColor: isPositive ? '#4CAF5018' : '#F4433618' }]}
                           >
                             <Text style={[styles.nettoLabel, { color: isPositive ? '#4CAF50' : '#F44336' }]}>
-                              {isPositive ? `${person.name} zahlt dir` : `Du zahlst ${person.name}`}
+                              {isPositive ? `${person.name} zahlt dir:` : `Du zahlst ${person.name}:`}
                             </Text>
                             <Text style={[styles.nettoAmount, { color: isPositive ? '#4CAF50' : '#F44336' }]}>
-                              {Math.abs(amount).toFixed(2)} {currency}
+                              {currency} {Math.abs(amount).toFixed(2)}
                             </Text>
                           </View>
                         );
@@ -702,7 +702,7 @@ export default function SettleScreen() {
                 <View style={{ flex: 1 }}>
                   {Object.entries(totalOweByCurrency).map(([cur, amount]) => (
                     <Text key={cur} style={styles.totalRed}>
-                      Du schuldest: {amount.toFixed(2)} {cur}
+                      Du schuldest: {cur} {amount.toFixed(2)}
                     </Text>
                   ))}
                   {Object.keys(totalOweByCurrency).length === 0 && (
@@ -712,7 +712,7 @@ export default function SettleScreen() {
                 <View style={{ flex: 1, alignItems: 'flex-end' }}>
                   {Object.entries(totalOwedByCurrency).map(([cur, amount]) => (
                     <Text key={cur} style={styles.totalGreen}>
-                      Du bekommst: {amount.toFixed(2)} {cur}
+                      Du bekommst: {cur} {amount.toFixed(2)}
                     </Text>
                   ))}
                   {Object.keys(totalOwedByCurrency).length === 0 && (
@@ -733,7 +733,7 @@ export default function SettleScreen() {
                         {currency}
                       </Text>
                       <Text style={[styles.footerNettoValue, { color: netto >= 0 ? '#4CAF50' : '#F44336' }]}>
-                        {netto >= 0 ? '+' : ''}{netto.toFixed(2)} {currency}
+                        {currency} {netto >= 0 ? '+' : ''}{netto.toFixed(2)}
                       </Text>
                     </View>
                   );
@@ -870,7 +870,7 @@ export default function SettleScreen() {
                       <Text style={styles.monthLabel}>{month}</Text>
                       <View style={styles.monthTotals}>
                         {Object.entries(monthTotal).map(([cur, total]) => (
-                          <Text key={cur} style={styles.monthTotal}>{total.toFixed(2)} {cur}</Text>
+                          <Text key={cur} style={styles.monthTotal}>{cur} {total.toFixed(2)}</Text>
                         ))}
                       </View>
                     </View>
@@ -915,7 +915,7 @@ export default function SettleScreen() {
                               <Text style={styles.historyDate}>{settledDate}</Text>
                             </View>
                             <Text style={styles.historyAmount}>
-                              {item.amount.toFixed(2)} {item.expense?.currency ?? 'CHF'}
+                              {item.expense?.currency ?? 'CHF'} {item.amount.toFixed(2)}
                             </Text>
                           </View>
                           <TouchableOpacity

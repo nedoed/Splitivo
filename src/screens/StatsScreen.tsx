@@ -562,8 +562,8 @@ export default function StatsScreen() {
                         { color: theme.danger, marginBottom: 1 },
                       ]}
                     >
+                      <Text style={styles.overviewInlineCur}>{cur} </Text>
                       {amount.toFixed(0)}
-                      <Text style={styles.overviewInlineCur}> {cur}</Text>
                     </Text>
                   ))}
                   <Text style={styles.overviewLabel}>Schulden</Text>
@@ -644,7 +644,7 @@ export default function StatsScreen() {
                   <View style={styles.currencySectionHeader}>
                     <Text style={styles.currencySectionTitle}>{cur} Übersicht</Text>
                     <Text style={styles.currencySectionTotal}>
-                      {stats.total.toFixed(2)} {cur}
+                      {cur} {stats.total.toFixed(2)}
                     </Text>
                   </View>
                 )}
@@ -670,7 +670,7 @@ export default function StatsScreen() {
                       </Text>
                     </View>
                     <Text style={styles.maxExpenseAmount}>
-                      {stats.maxExpense.amount.toFixed(2)} {cur}
+                      {cur} {stats.maxExpense.amount.toFixed(2)}
                     </Text>
                   </View>
                 )}
@@ -684,7 +684,7 @@ export default function StatsScreen() {
                           <View style={[styles.catDot, { backgroundColor: cat.color }]} />
                           <Text style={styles.catName} numberOfLines={1}>{cat.name}</Text>
                           <Text style={styles.catPct}>{cat.pct}%</Text>
-                          <Text style={styles.catAmount}>{cat.amount.toFixed(2)} {cur}</Text>
+                          <Text style={styles.catAmount}>{cur} {cat.amount.toFixed(2)}</Text>
                         </View>
                         <View style={styles.catBarBg}>
                           <View style={[styles.catBarFill, { width: `${Math.max(cat.pct, 2)}%` as any, backgroundColor: cat.color }]} />
@@ -713,7 +713,7 @@ export default function StatsScreen() {
                           </Text>
                         </View>
                         <Text style={styles.expenseAmount}>
-                          {expense.amount.toFixed(2)} {cur}
+                          {cur} {expense.amount.toFixed(2)}
                         </Text>
                       </View>
                     ))}
@@ -772,7 +772,7 @@ export default function StatsScreen() {
                       <View style={{ alignItems: 'flex-end' }}>
                         {Object.entries(group.byCurrency).map(([cur, amt]) => (
                           <Text key={cur} style={styles.groupStatAmount}>
-                            {amt.toFixed(2)} {cur}
+                            {cur} {amt.toFixed(2)}
                           </Text>
                         ))}
                       </View>
@@ -811,14 +811,14 @@ export default function StatsScreen() {
                             {vals.owesMe > 0.005 && (
                               <View style={[styles.memberDebtChip, { backgroundColor: theme.successBg }]}>
                                 <Text style={[styles.memberDebtChipText, { color: theme.success }]}>
-                                  +{vals.owesMe.toFixed(2)} {cur}
+                                  +{cur} {vals.owesMe.toFixed(2)}
                                 </Text>
                               </View>
                             )}
                             {vals.iOwe > 0.005 && (
                               <View style={[styles.memberDebtChip, { backgroundColor: theme.dangerBg }]}>
                                 <Text style={[styles.memberDebtChipText, { color: theme.danger }]}>
-                                  -{vals.iOwe.toFixed(2)} {cur}
+                                  -{cur} {vals.iOwe.toFixed(2)}
                                 </Text>
                               </View>
                             )}

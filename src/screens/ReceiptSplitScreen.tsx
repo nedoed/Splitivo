@@ -249,7 +249,7 @@ export default function ReceiptSplitScreen({ route, navigation }: any) {
         group.id,
         paidBy,
         'Neue Ausgabe 💸',
-        `${getPaidByName()} hat „${scanResult.description}" (${scanResult.total.toFixed(2)} ${scanResult.currency}) erfasst.`
+        `${getPaidByName()} hat „${scanResult.description}" (${scanResult.currency} ${scanResult.total.toFixed(2)}) erfasst.`
       );
 
       navigation.navigate('GroupDetail', { group });
@@ -270,7 +270,7 @@ export default function ReceiptSplitScreen({ route, navigation }: any) {
       {/* Header */}
       <View style={styles.headerCard}>
         <Text style={styles.headerTitle}>{scanResult.description}</Text>
-        <Text style={styles.headerAmount}>{totalAmount.toFixed(2)} {currency}</Text>
+        <Text style={styles.headerAmount}>{currency} {totalAmount.toFixed(2)}</Text>
         <Text style={styles.headerSub}>{items.length} Positionen</Text>
       </View>
 
@@ -284,7 +284,7 @@ export default function ReceiptSplitScreen({ route, navigation }: any) {
                 <Text style={styles.itemName}>{item.name}</Text>
                 {item.quantity > 1 && (
                   <Text style={styles.itemQty}>
-                    {item.quantity}× · {item.price.toFixed(2)} {currency}
+                    {item.quantity}× · {currency} {item.price.toFixed(2)}
                   </Text>
                 )}
               </View>
@@ -335,7 +335,7 @@ export default function ReceiptSplitScreen({ route, navigation }: any) {
                 </View>
                 <Text style={styles.summaryName}>{name}</Text>
                 <Text style={[styles.summaryAmount, amount > 0 && styles.summaryAmountActive]}>
-                  {amount.toFixed(2)} {currency}
+                  {currency} {amount.toFixed(2)}
                 </Text>
               </View>
             );

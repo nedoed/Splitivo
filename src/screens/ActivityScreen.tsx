@@ -106,7 +106,7 @@ export default function ActivityScreen() {
             </Text>
           </View>
           <Text style={styles.expenseAmount}>
-            {expense.amount.toFixed(2)} {(expense as any).currency ?? 'CHF'}
+            {(expense as any).currency ?? 'CHF'} {expense.amount.toFixed(2)}
           </Text>
         </View>
       ))}
