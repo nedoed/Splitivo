@@ -271,7 +271,7 @@ export default function ExpenseDetailScreen({ route, navigation }: any) {
                 <TouchableOpacity
                   key={c.value}
                   style={[styles.catChip, editCategory === c.value && styles.catChipActive]}
-                  onPress={() => setEditCategory(c.value)}
+                  onPress={() => { haptics.selection(); setEditCategory(c.value); }}
                 >
                   <Text style={styles.catChipIcon}>{c.icon}</Text>
                   <Text style={[styles.catChipLabel, editCategory === c.value && styles.catChipLabelActive]}>

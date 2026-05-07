@@ -376,7 +376,7 @@ export default function SettleScreen() {
   }, []));
 
   // ── Settle actions ───────────────────────────────────────────────────────────
-  const markSplitsSettled = async (splits: SplitItem[], paymentMethod: string, toUserId?: string) => {
+  const markSplitsSettled = async (splits: SplitItem[], paymentMethod: string, toUserId?: string, onAfterSettle?: () => void) => {
     const ids = splits.map(s => s.id);
     await supabase
       .from('expense_splits')
@@ -390,22 +390,66 @@ export default function SettleScreen() {
     }
     fetchDebts();
     loadHistory();
+    if (onAfterSettle) onAfterSettle();
   };
 
-  const askSettled = (entry: DebtEntry, method: string) => {
+  const askSettled = (entry: DebtEntry, method: string, onAfterSettle?: () => void) => {
     setTimeout(() => {
       Alert.alert(
         'Zahlung abgeschlossen?',
         'Möchtest du diese Schulden als beglichen markieren?',
         [
           { text: 'Nein', style: 'cancel' },
-          { text: 'Ja, beglichen', onPress: () => markSplitsSettled(entry.splits, method, entry.payerId) },
+          { text: 'Ja, beglichen', onPress: () => markSplitsSettled(entry.splits, method, entry.payerId, onAfterSettle) },
         ]
       );
     }, 400);
   };
 
-  const settleDebtEntry = (entry: DebtEntry) => {
+  const showSettleOptions = (entry: DebtEntry, groupCredits: CreditEntry[]) => {
+    const currency = entry.currency;
+    const debtTotal = entry.splits.reduce((s, sp) => s + sp.amount, 0);
+
+    const creditTotal = groupCredits
+      .filter(c => c.currency === currency)
+      .reduce((s, c) => s + c.splits.reduce((ss, sp) => ss + sp.amount, 0), 0);
+
+    const nettoAmount = debtTotal - creditTotal;
+
+    if (creditTotal > 0 && nettoAmount > 0) {
+      Alert.alert(
+        'Betrag auswählen',
+        `Du schuldest: ${currency} ${debtTotal.toFixed(2)}\n` +
+        `Du bekommst: ${currency} ${creditTotal.toFixed(2)}\n` +
+        `─────────────────────\n` +
+        `Netto: ${currency} ${nettoAmount.toFixed(2)}`,
+        [
+          { text: 'Abbrechen', style: 'cancel' },
+          {
+            text: `Voll: ${currency} ${debtTotal.toFixed(2)}`,
+            onPress: () => settleDebtEntry(entry),
+          },
+          {
+            text: `Netto: ${currency} ${nettoAmount.toFixed(2)}`,
+            onPress: () => settleDebtEntry(entry, () => {
+              setTimeout(() => {
+                Alert.alert(
+                  'Netto beglichen ✓',
+                  `Du hast den Netto-Betrag von ${currency} ${nettoAmount.toFixed(2)} bezahlt.\n\n` +
+                  `Hinweis: Deine offenen Forderungen (${currency} ${creditTotal.toFixed(2)}) ` +
+                  `bleiben offen bis ${entry.payerName} sie begleicht.`
+                );
+              }, 300);
+            }),
+          },
+        ]
+      );
+    } else {
+      settleDebtEntry(entry);
+    }
+  };
+
+  const settleDebtEntry = (entry: DebtEntry, onAfterSettle?: () => void) => {
     const total = entry.splits.reduce((s, sp) => s + sp.amount, 0);
     haptics.warning();
     Alert.alert(
@@ -417,32 +461,32 @@ export default function SettleScreen() {
           text: '💙 TWINT',
           onPress: async () => {
             const opened = await payWithTwint();
-            if (opened) askSettled(entry, 'TWINT');
+            if (opened) askSettled(entry, 'TWINT', onAfterSettle);
           },
         },
         {
           text: '🟣 WERO',
           onPress: async () => {
             const opened = await payWithWero();
-            if (opened) askSettled(entry, 'WERO');
+            if (opened) askSettled(entry, 'WERO', onAfterSettle);
           },
         },
         {
           text: '🔵 PayPal',
           onPress: async () => {
             const opened = await payWithPayPal(entry.payerId);
-            if (opened) askSettled(entry, 'PayPal');
+            if (opened) askSettled(entry, 'PayPal', onAfterSettle);
           },
         },
         {
           text: '🏦 Banküberweisung',
           onPress: async () => {
             const shown = await showBankDetails(entry.payerId);
-            if (shown) askSettled(entry, 'Banküberweisung');
+            if (shown) askSettled(entry, 'Banküberweisung', onAfterSettle);
           },
         },
-        { text: '💵 Bar',       onPress: () => markSplitsSettled(entry.splits, 'Bar', entry.payerId) },
-        { text: '✅ Sonstiges', onPress: () => markSplitsSettled(entry.splits, 'Sonstiges', entry.payerId) },
+        { text: '💵 Bar',       onPress: () => markSplitsSettled(entry.splits, 'Bar', entry.payerId, onAfterSettle) },
+        { text: '✅ Sonstiges', onPress: () => markSplitsSettled(entry.splits, 'Sonstiges', entry.payerId, onAfterSettle) },
       ]
     );
   };
@@ -592,7 +636,7 @@ export default function SettleScreen() {
                           </View>
                           <TouchableOpacity
                             style={styles.settleBtn}
-                            onPress={() => settleDebtEntry(entry)}
+                            onPress={() => showSettleOptions(entry, group.credits)}
                             activeOpacity={0.8}
                           >
                             <Text style={styles.settleBtnText}>Alle begleichen</Text>
@@ -646,7 +690,7 @@ export default function SettleScreen() {
                                     style={[styles.groupNettoRow, { backgroundColor: isPositive ? '#4CAF5018' : '#F4433618' }]}
                                   >
                                     <Text style={[styles.groupNettoLabel, { color: isPositive ? '#4CAF50' : '#F44336' }]}>
-                                      {isPositive ? `Netto: ${person.name} zahlt dir:` : `Netto: Du zahlst ${person.name}:`}
+                                      {isPositive ? `Netto: ${person.name} zahlt dir: ` : `Netto: Du zahlst ${person.name}: `}
                                     </Text>
                                     <Text style={[styles.groupNettoAmount, { color: isPositive ? '#4CAF50' : '#F44336' }]}>
                                       {isPositive ? '+' : ''}{currency} {Math.abs(amount).toFixed(2)}
@@ -679,7 +723,7 @@ export default function SettleScreen() {
                             style={[styles.nettoRow, { backgroundColor: isPositive ? '#4CAF5018' : '#F4433618' }]}
                           >
                             <Text style={[styles.nettoLabel, { color: isPositive ? '#4CAF50' : '#F44336' }]}>
-                              {isPositive ? `${person.name} zahlt dir:` : `Du zahlst ${person.name}:`}
+                              {isPositive ? `${person.name} zahlt dir: ` : `Du zahlst ${person.name}: `}
                             </Text>
                             <Text style={[styles.nettoAmount, { color: isPositive ? '#4CAF50' : '#F44336' }]}>
                               {currency} {Math.abs(amount).toFixed(2)}

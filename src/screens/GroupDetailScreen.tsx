@@ -83,17 +83,29 @@ export default function GroupDetailScreen({ route, navigation }: any) {
   useFocusEffect(useCallback(() => { fetchData(); }, []));
 
   useEffect(() => {
-    const channel = supabase
-      .channel(`group_members_${group.id}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'group_members', filter: `group_id=eq.${group.id}` },
-        () => { loadMembers(); }
-      )
-      .subscribe();
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+
+    const setupSubscription = () => {
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
+      channel = supabase
+        .channel(`group_members_${group.id}_${Date.now()}`)
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'group_members', filter: `group_id=eq.${group.id}` },
+          () => { loadMembers(); }
+        )
+        .subscribe();
+    };
+
+    setupSubscription();
 
     return () => {
-      supabase.removeChannel(channel);
+      if (channel) {
+        supabase.removeChannel(channel);
+        channel = null;
+      }
     };
   }, [group.id]);
 
