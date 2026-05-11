@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Splitivo Prototype</title>
+<script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #1a1a2e;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 40px 20px;
+    font-family: -apple-system, 'SF Pro Text', sans-serif;
+  }
+  .top-bar {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 32px;
+  }
+  .app-title {
+    color: white;
+    font-size: 28px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+  }
+  .app-subtitle {
+    color: rgba(255,255,255,0.5);
+    font-size: 14px;
+    margin-top: 2px;
+  }
+  .toggle-dark {
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.2);
+    color: white;
+    padding: 8px 16px;
+    border-radius: 20px;
+    cursor: pointer;
+    font-size: 13px;
+    font-family: -apple-system, sans-serif;
+    transition: background 0.2s;
+  }
+  .toggle-dark:hover { background: rgba(255,255,255,0.2); }
+  ::-webkit-scrollbar { width: 0; }
+</style>
+</head>
+<body>
+<script type="text/babel">
+// ─── iOS Frame ───────────────────────────────────────────────────────────────
+const iosFrameStyles = {
+  wrapper: {
+    display: 'inline-block', padding: 12, background: '#000',
+    borderRadius: 60, boxShadow: '0 0 0 2px #1f2937, 0 20px 60px rgba(0,0,0,0.4)',
+    position: 'relative',
+  },
+  screen: { position: 'relative', borderRadius: 48, overflow: 'hidden' },
+  statusBar: {
+    position: 'absolute', top: 0, left: 0, right: 0, height: 54,
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+    padding: '0 32px', fontSize: 16, fontWeight: 600,
+    fontFamily: '-apple-system, "SF Pro Text", sans-serif', zIndex: 20, pointerEvents: 'none',
+  },
+  dynamicIsland: {
+    position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)',
+    width: 124, height: 36, background: '#000', borderRadius: 999, zIndex: 30,
+  },
+  statusIcons: { display: 'flex', alignItems: 'center', gap: 6 },
+  signalIcon: { display: 'flex', alignItems: 'flex-end', gap: 2, height: 12 },
+  signalBar: { width: 3, background: 'currentColor', borderRadius: 1 },
+  batteryIcon: {
+    width: 26, height: 12, border: '1.5px solid currentColor', borderRadius: 3,
+    padding: 1, position: 'relative', opacity: 0.8,
+  },
+  batteryCap: {
+    position: 'absolute', top: 3, right: -3, width: 2, height: 6,
+    background: 'currentColor', borderRadius: '0 1px 1px 0',
+  },
+  content: { position: 'absolute', top: 54, left: 0, right: 0, bottom: 34, overflow: 'auto' },
+  homeIndicator: {
+    position: 'absolute', bottom: 10, left: '50%', transform: 'translateX(-50%)',
+    width: 140, height: 5, borderRadius: 999, zIndex: 10,
+  },
+};
+
+function IosFrame({ children, time = '9:41', battery = 87, darkMode = false }) {
+  const W = 393, H = 852;
+  const tc = darkMode ? '#fff' : '#000';
+  return (
+    <div style={iosFrameStyles.wrapper}>
+      <div style={{ ...iosFrameStyles.screen, width: W, height: H, background: darkMode ? '#121212' : '#F8F8FF' }}>
+        <div style={{ ...iosFrameStyles.statusBar, color: tc }}>
+          <span>{time}</span>
+          <div style={iosFrameStyles.statusIcons}>
+            <div style={iosFrameStyles.signalIcon}>
+              {[4,6,9,11].map((h,i) => <div key={i} style={{ ...iosFrameStyles.signalBar, height: h }} />)}
+            </div>
+            <svg width="16" height="12" viewBox="0 0 16 12" fill="none">
+              <path d="M8 11.5a1 1 0 100-2 1 1 0 000 2z" fill={tc} />
+              <path d="M3 7.5a7 7 0 0110 0" stroke={tc} strokeWidth="1.3" fill="none" strokeLinecap="round" />
+              <path d="M1 4.5a11 11 0 0114 0" stroke={tc} strokeWidth="1.3" fill="none" strokeLinecap="round" opacity="0.7" />
+            </svg>
+            <div style={{ ...iosFrameStyles.batteryIcon, color: tc }}>
+              <div style={{ width: `${battery}%`, height: '100%', background: tc, borderRadius: 1, opacity: 0.9 }} />
+              <div style={{ ...iosFrameStyles.batteryCap, background: tc }} />
+            </div>
+          </div>
+        </div>
+        <div style={iosFrameStyles.dynamicIsland} />
+        <div style={iosFrameStyles.content}>{children}</div>
+        <div style={{ ...iosFrameStyles.homeIndicator, background: darkMode ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.25)' }} />
+      </div>
+    </div>
+  );
+}
+
+// ─── Data ────────────────────────────────────────────────────────────────────
+const GROUPS = [
+  { id: 1, name: 'WG Berlin', emoji: '🏠', members: ['Max', 'Julia', 'Leon', 'Sara'], balance: -47.50, currency: 'EUR' },
+  { id: 2, name: 'Mallorca Trip', emoji: '✈️', members: ['Max', 'Tobi', 'Lea'], balance: 82.00, currency: 'EUR' },
+  { id: 3, name: 'Büro Mittagessen', emoji: '🍔', members: ['Max', 'Kira', 'Jonas'], balance: -12.30, currency: 'EUR' },
+  { id: 4, name: 'Ski Österreich', emoji: '⛷️', members: ['Max', 'Finn', 'Anna', 'Ben', 'Mia'], balance: 0, currency: 'EUR' },
+];
+
+const WG_EXPENSES = [
+  { id: 1, desc: 'REWE Einkauf', amount: 89.40, category: '🛒', paid_by: 'Julia', date: '10. Mai', split: 4 },
+  { id: 2, desc: 'Strom April', amount: 124.00, category: '💡', paid_by: 'Max', date: '8. Mai', split: 4 },
+  { id: 3, desc: 'Pizza Lieferando', amount: 42.80, category: '🍔', paid_by: 'Leon', date: '7. Mai', split: 3 },
+  { id: 4, desc: 'Putzmittel dm', amount: 18.60, category: '🧹', paid_by: 'Sara', date: '5. Mai', split: 4 },
+  { id: 5, desc: 'Netflix', amount: 17.99, category: '🎉', paid_by: 'Julia', date: '1. Mai', split: 4 },
+];
+
+const WG_DEBTS = [
+  { from: 'Max', to: 'Julia', amount: 47.50 },
+  { from: 'Leon', to: 'Julia', amount: 23.10 },
+  { from: 'Sara', to: 'Max', amount: 31.00 },
+];
+
+const STATS_CATEGORIES = [
+  { label: 'Essen & Trinken', value: 342, color: '#FF6B6B', pct: 38 },
+  { label: 'Unterkunft', value: 280, color: '#6C63FF', pct: 31 },
+  { label: 'Transport', value: 145, color: '#4ECDC4', pct: 16 },
+  { label: 'Unterhaltung', value: 89, color: '#FFD93D', pct: 10 },
+  { label: 'Sonstiges', value: 45, color: '#95E1D3', pct: 5 },
+];
+
+const MONTHLY = [
+  { m: 'Jan', v: 210 }, { m: 'Feb', v: 340 }, { m: 'Mär', v: 180 },
+  { m: 'Apr', v: 420 }, { m: 'Mai', v: 295 },
+];
+
+const ALL_DEBTS = [
+  { from: 'Du', to: 'Julia', amount: 47.50, group: 'WG Berlin' },
+  { from: 'Du', to: 'Tobi', amount: 12.30, group: 'Büro Mittagessen' },
+  { from: 'Lea', to: 'Du', amount: 82.00, group: 'Mallorca Trip' },
+];
+
+const CATS = [
+  { v: 'food', l: '🍔 Essen & Trinken' }, { v: 'transport', l: '🚗 Transport' },
+  { v: 'accommodation', l: '🏠 Unterkunft' }, { v: 'entertainment', l: '🎉 Unterhaltung' },
+  { v: 'shopping', l: '🛒 Einkaufen' }, { v: 'health', l: '💊 Gesundheit' },
+  { v: 'other', l: '📦 Sonstiges' },
+];
+
+// ─── Shared Styles ───────────────────────────────────────────────────────────
+const t = (dark) => ({
+  bg: dark ? '#121212' : '#F8F8FF',
+  card: dark ? '#1E1E1E' : '#FFFFFF',
+  text: dark ? '#FFFFFF' : '#1a1a2e',
+  sub: dark ? '#AAAAAA' : '#888888',
+  border: dark ? '#333333' : '#E8E8F0',
+  primary: dark ? '#8B84FF' : '#6C63FF',
+  primaryLight: dark ? '#2A2640' : '#EEF0FF',
+  success: '#22C55E',
+  successBg: dark ? '#1A3D20' : '#DCFCE7',
+  danger: '#EF5350',
+  dangerBg: dark ? '#3D1515' : '#FFF0F0',
+  tabBar: dark ? '#1E1E1E' : '#FFFFFF',
+  tabBorder: dark ? '#333' : '#E0E0E0',
+});
+
+// ─── Avatar ──────────────────────────────────────────────────────────────────
+const COLORS = ['#6C63FF','#FF6B6B','#4ECDC4','#FFD93D','#95E1D3','#F7797D','#4776E6'];
+function Avatar({ name, size = 32 }) {
+  const idx = name.charCodeAt(0) % COLORS.length;
+  return (
+    <div style={{
+      width: size, height: size, borderRadius: '50%', background: COLORS[idx],
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      color: '#fff', fontSize: size * 0.4, fontWeight: 700, flexShrink: 0,
+    }}>
+      {name[0]}
+    </div>
+  );
+}
+
+// ─── Tab Bar ─────────────────────────────────────────────────────────────────
+const TABS = [
+  { id: 'gruppen', label: 'Gruppen', icon: '👥' },
+  { id: 'aktivitaet', label: 'Aktivität', icon: '📋' },
+  { id: 'statistik', label: 'Statistik', icon: '📊' },
+  { id: 'abrechnen', label: 'Abrechnen', icon: '💸' },
+  { id: 'profil', label: 'Profil', icon: '👤' },
+];
+
+function TabBar({ active, onTab, dark }) {
+  const th = t(dark);
+  return (
+    <div style={{
+      position: 'sticky', bottom: 0, background: th.tabBar,
+      borderTop: `0.5px solid ${th.tabBorder}`,
+      display: 'flex', zIndex: 50,
+      paddingBottom: 4,
+    }}>
+      {TABS.map(tab => {
+        const isActive = tab.id === active;
+        return (
+          <button key={tab.id} onClick={() => onTab(tab.id)} style={{
+            flex: 1, display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'center',
+            padding: '8px 0 4px', border: 'none', background: 'none',
+            cursor: 'pointer', gap: 3,
+          }}>
+            <span style={{ fontSize: 22, filter: isActive ? 'none' : 'grayscale(1) opacity(0.5)' }}>{tab.icon}</span>
+            <span style={{
+              fontSize: 10, fontWeight: isActive ? 700 : 500,
+              color: isActive ? th.primary : th.sub,
+            }}>{tab.label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── Screens ─────────────────────────────────────────────────────────────────
+function GroupsScreen({ dark, onGroup }) {
+  const th = t(dark);
+  const total = GROUPS.reduce((s, g) => s + g.balance, 0);
+  return (
+    <div style={{ background: th.bg, minHeight: '100%', paddingBottom: 8 }}>
+      {/* Header */}
+      <div style={{ padding: '20px 20px 12px', background: th.card, borderBottom: `1px solid ${th.border}` }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div>
+            <div style={{ fontSize: 24, fontWeight: 800, color: th.text, letterSpacing: -0.5 }}>Gruppen</div>
+            <div style={{ fontSize: 13, color: th.sub, marginTop: 2 }}>Hallo, Max 👋</div>
+          </div>
+          <button style={{
+            width: 36, height: 36, borderRadius: '50%', background: th.primary,
+            border: 'none', color: '#fff', fontSize: 20, cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>+</button>
+        </div>
+        {/* Balance Summary */}
+        <div style={{
+          marginTop: 14, background: th.primaryLight, borderRadius: 14,
+          padding: '12px 16px', display: 'flex', justifyContent: 'space-between',
+        }}>
+          <div>
+            <div style={{ fontSize: 11, color: th.sub, textTransform: 'uppercase', letterSpacing: 0.5 }}>Gesamtbilanz</div>
+            <div style={{ fontSize: 20, fontWeight: 800, color: total >= 0 ? th.success : th.danger, marginTop: 2 }}>
+              {total >= 0 ? '+' : ''}{total.toFixed(2)} €
+            </div>
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontSize: 11, color: th.sub, textTransform: 'uppercase', letterSpacing: 0.5 }}>Gruppen</div>
+            <div style={{ fontSize: 20, fontWeight: 800, color: th.text, marginTop: 2 }}>{GROUPS.length}</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Group Cards */}
+      <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {GROUPS.map(g => (
+          <button key={g.id} onClick={() => onGroup(g)} style={{
+            background: th.card, border: `1px solid ${th.border}`, borderRadius: 16,
+            padding: '14px 16px', cursor: 'pointer', textAlign: 'left', width: '100%',
+            display: 'flex', alignItems: 'center', gap: 14,
+            boxShadow: dark ? 'none' : '0 1px 4px rgba(0,0,0,0.05)',
+          }}>
+            <div style={{
+              width: 46, height: 46, borderRadius: 14, background: th.primaryLight,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, flexShrink: 0,
+            }}>{g.emoji}</div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 16, fontWeight: 700, color: th.text }}>{g.name}</div>
+              <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+                {g.members.slice(0, 3).map(m => (
+                  <Avatar key={m} name={m} size={20} />
+                ))}
+                {g.members.length > 3 && (
+                  <div style={{
+                    width: 20, height: 20, borderRadius: '50%', background: th.border,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 9, color: th.sub, fontWeight: 700,
+                  }}>+{g.members.length - 3}</div>
+                )}
+              </div>
+            </div>
+            <div style={{ textAlign: 'right', flexShrink: 0 }}>
+              {g.balance !== 0 ? (
+                <>
+                  <div style={{
+                    fontSize: 15, fontWeight: 700,
+                    color: g.balance > 0 ? th.success : th.danger,
+                  }}>
+                    {g.balance > 0 ? '+' : ''}{g.balance.toFixed(2)} €
+                  </div>
+                  <div style={{ fontSize: 11, color: th.sub, marginTop: 2 }}>
+                    {g.balance > 0 ? 'bekommst du' : 'schuldest du'}
+                  </div>
+                </>
+              ) : (
+                <div style={{ fontSize: 13, color: th.sub }}>Ausgeglichen</div>
+              )}
+            </div>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function GroupDetailScreen({ dark, group, onBack, onAddExpense }) {
+  const th = t(dark);
+  const myDebt = WG_DEBTS.find(d => d.from === 'Max');
+  return (
+    <div style={{ background: th.bg, minHeight: '100%', paddingBottom: 8 }}>
+      {/* Header */}
+      <div style={{ background: th.card, borderBottom: `1px solid ${th.border}`, padding: '16px 20px 14px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <button onClick={onBack} style={{
+            width: 32, height: 32, border: 'none', background: th.primaryLight,
+            borderRadius: '50%', cursor: 'pointer', color: th.primary,
+            fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>‹</button>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 18, fontWeight: 800, color: th.text }}>{group.emoji} {group.name}</div>
+            <div style={{ fontSize: 12, color: th.sub }}>{group.members.length} Mitglieder</div>
+          </div>
+          <button onClick={onAddExpense} style={{
+            background: th.primary, color: '#fff', border: 'none', borderRadius: 10,
+            padding: '7px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+          }}>+ Ausgabe</button>
+        </div>
+
+        {/* Members */}
+        <div style={{ display: 'flex', gap: 12, marginTop: 14 }}>
+          {group.members.map(m => (
+            <div key={m} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+              <Avatar name={m} size={38} />
+              <span style={{ fontSize: 11, color: th.sub }}>{m}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Schulden-Übersicht */}
+      <div style={{ padding: '12px 16px 0' }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: th.sub, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 8 }}>Schulden-Übersicht</div>
+        {WG_DEBTS.map((d, i) => (
+          <div key={i} style={{
+            background: th.card, borderRadius: 12, padding: '12px 14px',
+            marginBottom: 8, display: 'flex', alignItems: 'center', gap: 10,
+            border: `1px solid ${th.border}`,
+          }}>
+            <Avatar name={d.from} size={30} />
+            <div style={{ flex: 1 }}>
+              <span style={{ fontSize: 14, fontWeight: 600, color: th.text }}>{d.from}</span>
+              <span style={{ fontSize: 13, color: th.sub }}> schuldet </span>
+              <span style={{ fontSize: 14, fontWeight: 600, color: th.text }}>{d.to}</span>
+            </div>
+            <div style={{
+              background: d.from === 'Max' ? th.dangerBg : th.successBg,
+              borderRadius: 8, padding: '4px 10px',
+            }}>
+              <span style={{ fontSize: 14, fontWeight: 700, color: d.from === 'Max' ? th.danger : th.success }}>
+                {d.amount.toFixed(2)} €
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Ausgaben */}
+      <div style={{ padding: '12px 16px 0' }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: th.sub, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 8 }}>Letzte Ausgaben</div>
+        {WG_EXPENSES.map(e => (
+          <div key={e.id} style={{
+            background: th.card, borderRadius: 12, padding: '12px 14px',
+            marginBottom: 8, display: 'flex', alignItems: 'center', gap: 12,
+            border: `1px solid ${th.border}`,
+          }}>
+            <div style={{
+              width: 40, height: 40, borderRadius: 12, background: th.primaryLight,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20,
+            }}>{e.category}</div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: th.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{e.desc}</div>
+              <div style={{ fontSize: 12, color: th.sub, marginTop: 1 }}>{e.paid_by} · {e.date}</div>
+            </div>
+            <div style={{ textAlign: 'right', flexShrink: 0 }}>
+              <div style={{ fontSize: 15, fontWeight: 700, color: th.text }}>{e.amount.toFixed(2)} €</div>
+              <div style={{ fontSize: 11, color: th.sub }}>{(e.amount / e.split).toFixed(2)} €/Person</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function AddExpenseScreen({ dark, onBack }) {
+  const th = t(dark);
+  const [desc, setDesc] = React.useState('');
+  const [amount, setAmount] = React.useState('');
+  const [cat, setCat] = React.useState('food');
+  const [split, setSplit] = React.useState('equal');
+
+  const inputStyle = {
+    width: '100%', background: dark ? '#2A2A2A' : '#FAFAFA',
+    border: `1.5px solid ${th.border}`, borderRadius: 12,
+    padding: '13px 14px', fontSize: 16, color: th.text,
+    outline: 'none', fontFamily: '-apple-system, sans-serif',
+  };
+
+  return (
+    <div style={{ background: th.bg, minHeight: '100%', paddingBottom: 20 }}>
+      <div style={{ background: th.card, borderBottom: `1px solid ${th.border}`, padding: '16px 20px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <button onClick={onBack} style={{
+            width: 32, height: 32, border: 'none', background: th.primaryLight,
+            borderRadius: '50%', cursor: 'pointer', color: th.primary, fontSize: 16,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>‹</button>
+          <div style={{ fontSize: 18, fontWeight: 800, color: th.text }}>Ausgabe hinzufügen</div>
+        </div>
+      </div>
+
+      <div style={{ padding: '20px 16px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+        {/* Amount */}
+        <div style={{ background: th.card, borderRadius: 16, padding: '20px', textAlign: 'center', border: `1px solid ${th.border}` }}>
+          <div style={{ fontSize: 13, color: th.sub, marginBottom: 8 }}>Betrag</div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+            <span style={{ fontSize: 32, fontWeight: 300, color: th.sub }}>€</span>
+            <input
+              value={amount}
+              onChange={e => setAmount(e.target.value)}
+              placeholder="0,00"
+              style={{
+                background: 'none', border: 'none', fontSize: 44, fontWeight: 800,
+                color: amount ? th.primary : th.sub, width: 160, textAlign: 'center',
+                outline: 'none', fontFamily: '-apple-system, sans-serif',
+              }}
+            />
+          </div>
+        </div>
+
+        {/* Description */}
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: th.sub, marginBottom: 6 }}>Beschreibung</div>
+          <input
+            value={desc}
+            onChange={e => setDesc(e.target.value)}
+            placeholder="Wofür war die Ausgabe?"
+            style={inputStyle}
+          />
+        </div>
+
+        {/* Category */}
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: th.sub, marginBottom: 8 }}>Kategorie</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {CATS.map(c => (
+              <button key={c.v} onClick={() => setCat(c.v)} style={{
+                padding: '7px 12px', borderRadius: 20, border: `1.5px solid`,
+                borderColor: cat === c.v ? th.primary : th.border,
+                background: cat === c.v ? th.primaryLight : th.card,
+                color: cat === c.v ? th.primary : th.text,
+                fontSize: 13, fontWeight: cat === c.v ? 700 : 400,
+                cursor: 'pointer', fontFamily: '-apple-system, sans-serif',
+              }}>
+                {c.l}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Split */}
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: th.sub, marginBottom: 8 }}>Aufteilung</div>
+          <div style={{ display: 'flex', background: dark ? '#2A2A2A' : '#F0F0F8', borderRadius: 12, padding: 4, gap: 4 }}>
+            {[['equal','Gleich aufteilen'],['custom','Benutzerdefiniert']].map(([v,l]) => (
+              <button key={v} onClick={() => setSplit(v)} style={{
+                flex: 1, padding: '9px 4px', border: 'none', borderRadius: 9,
+                background: split === v ? (dark ? '#1E1E1E' : '#fff') : 'none',
+                color: split === v ? th.primary : th.sub,
+                fontSize: 13, fontWeight: split === v ? 700 : 400,
+                cursor: 'pointer', fontFamily: '-apple-system, sans-serif',
+                boxShadow: split === v ? '0 1px 4px rgba(0,0,0,0.1)' : 'none',
+                transition: 'all 0.15s',
+              }}>{l}</button>
+            ))}
+          </div>
+        </div>
+
+        {/* Date */}
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: th.sub, marginBottom: 6 }}>Datum</div>
+          <input type="date" defaultValue="2026-05-11" style={inputStyle} />
+        </div>
+
+        {/* CTA */}
+        <button style={{
+          width: '100%', padding: '16px', background: th.primary, color: '#fff',
+          border: 'none', borderRadius: 14, fontSize: 16, fontWeight: 700,
+          cursor: 'pointer', marginTop: 4, fontFamily: '-apple-system, sans-serif',
+          boxShadow: `0 4px 16px ${th.primary}55`,
+        }}>
+          Ausgabe speichern
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function SettleScreen({ dark }) {
+  const th = t(dark);
+  const owed = ALL_DEBTS.filter(d => d.from === 'Du');
+  const receiving = ALL_DEBTS.filter(d => d.to === 'Du');
+  return (
+    <div style={{ background: th.bg, minHeight: '100%', paddingBottom: 8 }}>
+      <div style={{ background: th.card, borderBottom: `1px solid ${th.border}`, padding: '20px 20px 16px' }}>
+        <div style={{ fontSize: 24, fontWeight: 800, color: th.text, letterSpacing: -0.5 }}>Abrechnen</div>
+        <div style={{ fontSize: 13, color: th.sub, marginTop: 2 }}>Offene Schulden über alle Gruppen</div>
+      </div>
+
+      <div style={{ padding: '12px 16px' }}>
+        {/* Du schuldest */}
+        <div style={{ fontSize: 13, fontWeight: 700, color: th.sub, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 8 }}>Du schuldest</div>
+        {owed.map((d, i) => (
+          <div key={i} style={{
+            background: th.card, border: `1px solid ${th.border}`, borderRadius: 14,
+            padding: '14px 14px', marginBottom: 10,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+              <Avatar name={d.to} size={40} />
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 15, fontWeight: 700, color: th.text }}>{d.to}</div>
+                <div style={{ fontSize: 12, color: th.sub }}>{d.group}</div>
+              </div>
+              <div style={{ background: th.dangerBg, borderRadius: 10, padding: '6px 12px' }}>
+                <span style={{ fontSize: 16, fontWeight: 800, color: th.danger }}>{d.amount.toFixed(2)} €</span>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button style={{
+                flex: 1, padding: '10px', background: '#00B4D8', color: '#fff',
+                border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 700,
+                cursor: 'pointer', fontFamily: '-apple-system, sans-serif',
+              }}>💳 TWINT</button>
+              <button style={{
+                flex: 1, padding: '10px', background: '#003087', color: '#fff',
+                border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 700,
+                cursor: 'pointer', fontFamily: '-apple-system, sans-serif',
+              }}>🅿️ PayPal</button>
+              <button style={{
+                flex: 1, padding: '10px', background: dark ? '#2A2A2A' : '#F0F0F8', color: th.text,
+                border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 700,
+                cursor: 'pointer', fontFamily: '-apple-system, sans-serif',
+              }}>Erinnerung</button>
+            </div>
+          </div>
+        ))}
+
+        {/* Du bekommst */}
+        <div style={{ fontSize: 13, fontWeight: 700, color: th.sub, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 8, marginTop: 4 }}>Du bekommst</div>
+        {receiving.map((d, i) => (
+          <div key={i} style={{
+            background: th.card, border: `1px solid ${th.border}`, borderRadius: 14,
+            padding: '14px 14px', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 12,
+          }}>
+            <Avatar name={d.from} size={40} />
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 15, fontWeight: 700, color: th.text }}>{d.from}</div>
+              <div style={{ fontSize: 12, color: th.sub }}>{d.group}</div>
+            </div>
+            <div style={{ background: th.successBg, borderRadius: 10, padding: '6px 12px' }}>
+              <span style={{ fontSize: 16, fontWeight: 800, color: th.success }}>+{d.amount.toFixed(2)} €</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function StatsScreen({ dark }) {
+  const th = t(dark);
+  const maxV = Math.max(...MONTHLY.map(m => m.v));
+  const total = STATS_CATEGORIES.reduce((s, c) => s + c.value, 0);
+
+  // Simple donut via conic-gradient
+  let pct = 0;
+  const stops = STATS_CATEGORIES.map(c => {
+    const s = `${c.color} ${pct}%, ${c.color} ${pct + c.pct}%`;
+    pct += c.pct;
+    return s;
+  }).join(', ');
+
+  return (
+    <div style={{ background: th.bg, minHeight: '100%', paddingBottom: 8 }}>
+      <div style={{ background: th.card, borderBottom: `1px solid ${th.border}`, padding: '20px 20px 16px' }}>
+        <div style={{ fontSize: 24, fontWeight: 800, color: th.text, letterSpacing: -0.5 }}>Statistik</div>
+        <div style={{ fontSize: 13, color: th.sub, marginTop: 2 }}>Monat: Mai 2026</div>
+      </div>
+
+      <div style={{ padding: '12px 16px' }}>
+        {/* Donut */}
+        <div style={{ background: th.card, border: `1px solid ${th.border}`, borderRadius: 16, padding: '20px 16px', marginBottom: 12 }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: th.text, marginBottom: 16 }}>Ausgaben nach Kategorie</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+            <div style={{ position: 'relative', flexShrink: 0 }}>
+              <div style={{
+                width: 110, height: 110, borderRadius: '50%',
+                background: `conic-gradient(${stops})`,
+              }} />
+              <div style={{
+                position: 'absolute', top: '50%', left: '50%',
+                transform: 'translate(-50%,-50%)',
+                width: 66, height: 66, borderRadius: '50%',
+                background: th.card,
+                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <div style={{ fontSize: 14, fontWeight: 800, color: th.text }}>{total} €</div>
+                <div style={{ fontSize: 9, color: th.sub }}>gesamt</div>
+              </div>
+            </div>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 7 }}>
+              {STATS_CATEGORIES.map(c => (
+                <div key={c.label} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ width: 10, height: 10, borderRadius: 3, background: c.color, flexShrink: 0 }} />
+                  <div style={{ flex: 1, fontSize: 12, color: th.sub, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.label}</div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: th.text, flexShrink: 0 }}>{c.value} €</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Bar Chart */}
+        <div style={{ background: th.card, border: `1px solid ${th.border}`, borderRadius: 16, padding: '20px 16px' }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: th.text, marginBottom: 16 }}>Monatlicher Verlauf</div>
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, height: 100 }}>
+            {MONTHLY.map(m => (
+              <div key={m.m} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+                <div style={{ fontSize: 11, color: th.text, fontWeight: 700 }}>{m.v}</div>
+                <div style={{
+                  width: '100%', height: (m.v / maxV) * 72,
+                  background: m.m === 'Mai' ? th.primary : th.primaryLight,
+                  borderRadius: '6px 6px 0 0', minHeight: 4,
+                  transition: 'height 0.3s ease',
+                }} />
+                <div style={{ fontSize: 11, color: th.sub }}>{m.m}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ActivityScreen({ dark }) {
+  const th = t(dark);
+  const items = [
+    { icon: '💸', text: 'Julia hat "REWE Einkauf" hinzugefügt', sub: 'WG Berlin · vor 1 Std.', amount: '+89,40 €' },
+    { icon: '✅', text: 'Leon hat seine Schuld beglichen', sub: 'Mallorca Trip · vor 3 Std.', amount: '30,00 €' },
+    { icon: '➕', text: 'Max hat "Strom April" hinzugefügt', sub: 'WG Berlin · gestern', amount: '+124,00 €' },
+    { icon: '🔔', text: 'Erinnerung: Tobi schuldet dir 12,30 €', sub: 'Büro Mittagessen · gestern', amount: null },
+    { icon: '💸', text: 'Sara hat "Pizza" hinzugefügt', sub: 'WG Berlin · vor 2 Tagen', amount: '+42,80 €' },
+  ];
+  return (
+    <div style={{ background: th.bg, minHeight: '100%', paddingBottom: 8 }}>
+      <div style={{ background: th.card, borderBottom: `1px solid ${th.border}`, padding: '20px 20px 16px' }}>
+        <div style={{ fontSize: 24, fontWeight: 800, color: th.text, letterSpacing: -0.5 }}>Aktivität</div>
+      </div>
+      <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {items.map((item, i) => (
+          <div key={i} style={{
+            background: th.card, border: `1px solid ${th.border}`, borderRadius: 14,
+            padding: '12px 14px', display: 'flex', gap: 12, alignItems: 'flex-start',
+          }}>
+            <div style={{
+              width: 36, height: 36, borderRadius: 10, background: th.primaryLight,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0,
+            }}>{item.icon}</div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 14, color: th.text, lineHeight: 1.4 }}>{item.text}</div>
+              <div style={{ fontSize: 12, color: th.sub, marginTop: 2 }}>{item.sub}</div>
+            </div>
+            {item.amount && (
+              <div style={{ fontSize: 14, fontWeight: 700, color: th.primary, flexShrink: 0 }}>{item.amount}</div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ProfileScreen({ dark }) {
+  const th = t(dark);
+  const items = [
+    { icon: '👥', label: 'Freunde', sub: '12 Freunde' },
+    { icon: '🔔', label: 'Erinnerungen', sub: 'Täglich um 18:00' },
+    { icon: '💳', label: 'PayPal.Me', sub: 'paypal.me/max' },
+    { icon: '🏦', label: 'IBAN', sub: 'DE89 3704 0044 ···· 1900 43' },
+    { icon: '🌙', label: 'Dark Mode', sub: 'Systemeinstellung' },
+    { icon: '📤', label: 'Konto exportieren', sub: 'CSV / Excel' },
+  ];
+  return (
+    <div style={{ background: th.bg, minHeight: '100%', paddingBottom: 8 }}>
+      <div style={{ background: th.card, borderBottom: `1px solid ${th.border}`, padding: '20px 20px 16px' }}>
+        <div style={{ fontSize: 24, fontWeight: 800, color: th.text, letterSpacing: -0.5 }}>Profil</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginTop: 16 }}>
+          <Avatar name="Max" size={60} />
+          <div>
+            <div style={{ fontSize: 20, fontWeight: 800, color: th.text }}>Max Müller</div>
+            <div style={{ fontSize: 13, color: th.sub }}>max.mueller@gmail.com</div>
+          </div>
+        </div>
+      </div>
+      <div style={{ padding: '12px 16px' }}>
+        <div style={{ background: th.card, border: `1px solid ${th.border}`, borderRadius: 16, overflow: 'hidden' }}>
+          {items.map((item, i) => (
+            <div key={i} style={{
+              padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 14,
+              borderBottom: i < items.length - 1 ? `1px solid ${th.border}` : 'none',
+            }}>
+              <div style={{
+                width: 36, height: 36, borderRadius: 10, background: th.primaryLight,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18,
+              }}>{item.icon}</div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 15, fontWeight: 600, color: th.text }}>{item.label}</div>
+                <div style={{ fontSize: 12, color: th.sub }}>{item.sub}</div>
+              </div>
+              <span style={{ color: th.sub, fontSize: 18 }}>›</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── App Shell ───────────────────────────────────────────────────────────────
+function App() {
+  const [dark, setDark] = React.useState(false);
+  const [tab, setTab] = React.useState('gruppen');
+  const [selectedGroup, setSelectedGroup] = React.useState(null);
+  const [addExpense, setAddExpense] = React.useState(false);
+
+  const handleTabChange = (newTab) => {
+    setTab(newTab);
+    setSelectedGroup(null);
+    setAddExpense(false);
+  };
+
+  let screen;
+  if (tab === 'gruppen') {
+    if (addExpense) {
+      screen = <AddExpenseScreen dark={dark} onBack={() => setAddExpense(false)} />;
+    } else if (selectedGroup) {
+      screen = <GroupDetailScreen dark={dark} group={selectedGroup} onBack={() => setSelectedGroup(null)} onAddExpense={() => setAddExpense(true)} />;
+    } else {
+      screen = <GroupsScreen dark={dark} onGroup={(g) => { if (g.id === 1) setSelectedGroup(g); }} />;
+    }
+  } else if (tab === 'aktivitaet') {
+    screen = <ActivityScreen dark={dark} />;
+  } else if (tab === 'statistik') {
+    screen = <StatsScreen dark={dark} />;
+  } else if (tab === 'abrechnen') {
+    screen = <SettleScreen dark={dark} />;
+  } else {
+    screen = <ProfileScreen dark={dark} />;
+  }
+
+  return (
+    <div>
+      <div className="top-bar">
+        <div>
+          <div className="app-title">💸 Splitivo</div>
+          <div className="app-subtitle">Interaktives Prototype</div>
+        </div>
+        <button className="toggle-dark" onClick={() => setDark(!dark)}>
+          {dark ? '☀️ Hell' : '🌙 Dunkel'}
+        </button>
+      </div>
+
+      <IosFrame time="9:41" battery={87} darkMode={dark}>
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: t(dark).bg }}>
+          <div style={{ flex: 1, overflow: 'auto' }}>
+            {screen}
+          </div>
+          <TabBar active={addExpense ? 'gruppen' : tab} onTab={handleTabChange} dark={dark} />
+        </div>
+      </IosFrame>
+
+      <div style={{ marginTop: 20, color: 'rgba(255,255,255,0.35)', fontSize: 12, textAlign: 'center' }}>
+        Tippe auf „WG Berlin" → Gruppe öffnen · „+ Ausgabe" → Formular
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+<div id="root"></div>
+</body>
+</html>
