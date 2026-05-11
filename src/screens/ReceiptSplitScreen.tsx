@@ -44,6 +44,7 @@ type ScanResult = {
   currency: string;
   description: string;
   category: string;
+  date?: string;
   items: Array<{ name: string; price: number; quantity: number; total: number }>;
 };
 
@@ -214,7 +215,7 @@ export default function ReceiptSplitScreen({ route, navigation }: any) {
           description: scanResult.description,
           category: scanResult.category,
           currency: scanResult.currency,
-          date: new Date().toISOString().split('T')[0],
+          date: scanResult.date ?? new Date().toISOString().split('T')[0],
           receipt_url: receiptUrl,
           receipt_items: items.map(({ name, price, quantity, total, assignedTo }) => ({
             name, price, quantity, total, assignedTo,
