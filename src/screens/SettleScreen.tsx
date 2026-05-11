@@ -681,7 +681,7 @@ export default function SettleScreen() {
                             </View>
                           )}
 
-                          {debtSplits.length > 0 && (
+                          {debtSplits.length > 0 && netto > 0 && (
                             <TouchableOpacity
                               style={styles.settleBtn}
                               onPress={() => {
