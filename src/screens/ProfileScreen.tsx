@@ -22,7 +22,7 @@ export default function ProfileScreen({ navigation }: any) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [stats, setStats] = useState({ groups: 0, expenses: 0, totalPaid: 0, friends: 0 });
+  const [stats, setStats] = useState({ groups: 0, expenses: 0, totalPaidByCurrency: {} as Record<string, number>, friends: 0 });
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [editUsernameVisible, setEditUsernameVisible] = useState(false);
   const [newUsername, setNewUsername] = useState('');
@@ -54,7 +54,7 @@ export default function ProfileScreen({ navigation }: any) {
     const [profileRes, groupsRes, expensesRes, friendsRes] = await Promise.all([
       supabase.from('profiles').select('*').eq('id', user.user.id).single(),
       supabase.from('group_members').select('id', { count: 'exact' }).eq('user_id', user.user.id),
-      supabase.from('expenses').select('amount').eq('paid_by', user.user.id),
+      supabase.from('expenses').select('amount, currency').eq('paid_by', user.user.id),
       supabase.from('friendships').select('id', { count: 'exact' }).eq('user_id', user.user.id),
     ]);
 
@@ -75,11 +75,15 @@ export default function ProfileScreen({ navigation }: any) {
       setEditBankName(profileRes.data.bank_name ?? '');
     }
 
-    const totalPaid = expensesRes.data?.reduce((sum, e) => sum + e.amount, 0) ?? 0;
+    const totalPaidByCurrency = (expensesRes.data ?? []).reduce((acc, e) => {
+      const cur = e.currency || 'CHF';
+      acc[cur] = (acc[cur] ?? 0) + e.amount;
+      return acc;
+    }, {} as Record<string, number>);
     setStats({
       groups: groupsRes.count ?? 0,
       expenses: expensesRes.data?.length ?? 0,
-      totalPaid,
+      totalPaidByCurrency,
       friends: friendsRes.count ?? 0,
     });
 
@@ -434,7 +438,13 @@ export default function ProfileScreen({ navigation }: any) {
           <Text style={styles.statLabel}>Freunde</Text>
         </View>
         <View style={styles.statCard}>
-          <Text style={styles.statValue}>{stats.totalPaid.toFixed(0)} €</Text>
+          <Text style={styles.statValue} numberOfLines={2} adjustsFontSizeToFit>
+            {Object.entries(stats.totalPaidByCurrency).length > 0
+              ? Object.entries(stats.totalPaidByCurrency)
+                  .map(([cur, amt]) => `${cur} ${amt.toFixed(0)}`)
+                  .join(' · ')
+              : '–'}
+          </Text>
           <Text style={styles.statLabel}>Bezahlt</Text>
         </View>
       </View>
