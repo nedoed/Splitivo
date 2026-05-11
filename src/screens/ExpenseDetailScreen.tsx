@@ -107,6 +107,7 @@ export default function ExpenseDetailScreen({ route, navigation }: any) {
     if (!editDesc.trim()) { Alert.alert('Fehler', 'Beschreibung darf nicht leer sein.'); return; }
     if (isNaN(num) || num <= 0) { Alert.alert('Fehler', 'Ungültiger Betrag.'); return; }
 
+    console.log('[Speichern] Kategorie:', editCategory);
     setSaving(true);
     const { error } = await supabase
       .from('expenses')
@@ -204,7 +205,7 @@ export default function ExpenseDetailScreen({ route, navigation }: any) {
     );
   }
 
-  const cat = getCategoryInfo(expense.category);
+  const cat = getCategoryInfo(editMode ? editCategory : expense.category);
   const allSettled = expense.splits.every((s) => s.is_settled);
   const myShare = expense.splits.find((s) => s.user_id === currentUserId);
 
@@ -266,12 +267,23 @@ export default function ExpenseDetailScreen({ route, navigation }: any) {
         {editMode && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Kategorie</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.catScroll}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.catScroll}
+              nestedScrollEnabled
+              keyboardShouldPersistTaps="handled"
+            >
               {CATEGORIES.map((c) => (
                 <TouchableOpacity
                   key={c.value}
                   style={[styles.catChip, editCategory === c.value && styles.catChipActive]}
-                  onPress={() => { haptics.selection(); setEditCategory(c.value); }}
+                  onPress={() => {
+                    console.log('[Kategorie] gewählt:', c.value, '| vorher:', editCategory);
+                    haptics.selection();
+                    setEditCategory(c.value);
+                  }}
+                  activeOpacity={0.7}
                 >
                   <Text style={styles.catChipIcon}>{c.icon}</Text>
                   <Text style={[styles.catChipLabel, editCategory === c.value && styles.catChipLabelActive]}>

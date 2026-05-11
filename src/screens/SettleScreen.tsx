@@ -410,37 +410,37 @@ export default function SettleScreen() {
     const currency = entry.currency;
     const debtTotal = entry.splits.reduce((s, sp) => s + sp.amount, 0);
 
+    // Only credits from the same person we owe (not group-wide)
     const creditTotal = groupCredits
-      .filter(c => c.currency === currency)
+      .filter(c => c.currency === currency && c.debtorId === entry.payerId)
       .reduce((s, c) => s + c.splits.reduce((ss, sp) => ss + sp.amount, 0), 0);
 
     const nettoAmount = debtTotal - creditTotal;
 
     if (creditTotal > 0 && nettoAmount > 0) {
       Alert.alert(
-        'Betrag auswählen',
-        `Du schuldest: ${currency} ${debtTotal.toFixed(2)}\n` +
-        `Du bekommst: ${currency} ${creditTotal.toFixed(2)}\n` +
-        `─────────────────────\n` +
-        `Netto: ${currency} ${nettoAmount.toFixed(2)}`,
+        'Betrag wählen',
+        `Du schuldest ${entry.payerName}: ${currency} ${debtTotal.toFixed(2)}\n` +
+        `${entry.payerName} schuldet dir: ${currency} ${creditTotal.toFixed(2)}\n` +
+        `─────────────────────────\n` +
+        `Netto zu zahlen: ${currency} ${nettoAmount.toFixed(2)}`,
         [
           { text: 'Abbrechen', style: 'cancel' },
-          {
-            text: `Voll: ${currency} ${debtTotal.toFixed(2)}`,
-            onPress: () => settleDebtEntry(entry),
-          },
           {
             text: `Netto: ${currency} ${nettoAmount.toFixed(2)}`,
             onPress: () => settleDebtEntry(entry, () => {
               setTimeout(() => {
                 Alert.alert(
-                  'Netto beglichen ✓',
-                  `Du hast den Netto-Betrag von ${currency} ${nettoAmount.toFixed(2)} bezahlt.\n\n` +
-                  `Hinweis: Deine offenen Forderungen (${currency} ${creditTotal.toFixed(2)}) ` +
-                  `bleiben offen bis ${entry.payerName} sie begleicht.`
+                  '✅ Beglichen',
+                  `Netto-Betrag wurde als beglichen markiert.\n\n` +
+                  `Deine offenen Forderungen bleiben bestehen bis ${entry.payerName} sie begleicht.`
                 );
               }, 300);
             }),
+          },
+          {
+            text: `Voll: ${currency} ${debtTotal.toFixed(2)}`,
+            onPress: () => settleDebtEntry(entry),
           },
         ]
       );
@@ -639,7 +639,11 @@ export default function SettleScreen() {
                             onPress={() => showSettleOptions(entry, group.credits)}
                             activeOpacity={0.8}
                           >
-                            <Text style={styles.settleBtnText}>Alle begleichen</Text>
+                            <Text style={styles.settleBtnText}>
+                              {group.credits.some(c => c.debtorId === entry.payerId && c.currency === entry.currency)
+                                ? 'Netto begleichen'
+                                : 'Alle begleichen'}
+                            </Text>
                           </TouchableOpacity>
                         </View>
                       ))}
