@@ -448,10 +448,21 @@ export default function SettleScreen() {
     }
   };
 
+  const confirmBeforePayment = (onConfirm: () => void) => {
+    Alert.alert(
+      '✅ Kurze Kontrolle',
+      'Hast du alle Positionen und Beträge auf ihre Richtigkeit geprüft?',
+      [
+        { text: 'Nochmals prüfen', style: 'cancel' },
+        { text: 'Ja, alles korrekt', onPress: onConfirm },
+      ]
+    );
+  };
+
   const settleDebtEntry = (entry: DebtEntry, onAfterSettle?: () => void, alertTitle?: string) => {
     const total = entry.splits.reduce((s, sp) => s + sp.amount, 0);
     haptics.warning();
-    Alert.alert(
+    confirmBeforePayment(() => Alert.alert(
       alertTitle ?? 'Alle begleichen',
       `${entry.currency} ${total.toFixed(2)} an ${entry.payerName} — Wie bezahlen?`,
       [
@@ -487,7 +498,7 @@ export default function SettleScreen() {
         { text: '💵 Bar',       onPress: () => markSplitsSettled(entry.splits, 'Bar', entry.payerId, onAfterSettle) },
         { text: '✅ Sonstiges', onPress: () => markSplitsSettled(entry.splits, 'Sonstiges', entry.payerId, onAfterSettle) },
       ]
-    );
+    ));
   };
 
   // ── Render ───────────────────────────────────────────────────────────────────
