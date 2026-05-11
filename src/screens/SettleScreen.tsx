@@ -435,7 +435,7 @@ export default function SettleScreen() {
                   `Beide Seiten wurden als beglichen markiert und erscheinen in der Historie.`
                 );
               }, 300);
-            }, `Netto begleichen: ${currency} ${nettoAmount.toFixed(2)}`),
+            }, `Netto begleichen: ${currency} ${nettoAmount.toFixed(2)}`, nettoAmount),
           },
           {
             text: `Voll: ${currency} ${debtTotal.toFixed(2)}`,
@@ -459,12 +459,13 @@ export default function SettleScreen() {
     );
   };
 
-  const settleDebtEntry = (entry: DebtEntry, onAfterSettle?: () => void, alertTitle?: string) => {
+  const settleDebtEntry = (entry: DebtEntry, onAfterSettle?: () => void, alertTitle?: string, displayAmount?: number) => {
     const total = entry.splits.reduce((s, sp) => s + sp.amount, 0);
+    const shownAmount = displayAmount ?? total;
     haptics.warning();
     confirmBeforePayment(() => Alert.alert(
       alertTitle ?? 'Alle begleichen',
-      `${entry.currency} ${total.toFixed(2)} an ${entry.payerName} — Wie bezahlen?`,
+      `${entry.currency} ${shownAmount.toFixed(2)} an ${entry.payerName} — Wie bezahlen?`,
       [
         { text: 'Abbrechen', style: 'cancel' },
         {
