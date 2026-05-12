@@ -536,11 +536,6 @@ export default function SettleScreen() {
       .reduce((s, c) => s + c.splits.reduce((ss, sp) => ss + sp.amount, 0), 0);
     const nettoAmount = Math.max(0, debtTotal - creditTotal);
 
-    console.log('debtTotal:', debtTotal);
-    console.log('creditTotal:', creditTotal);
-    console.log('nettoAmount:', nettoAmount);
-    console.log('creditEntries:', JSON.stringify(creditEntries));
-
     const title = creditTotal > 0
       ? `Netto begleichen: ${currency} ${nettoAmount.toFixed(2)}`
       : 'Begleichen';
@@ -552,11 +547,19 @@ export default function SettleScreen() {
         `Netto zu zahlen: ${currency} ${nettoAmount.toFixed(2)}`
       : `${currency} ${debtTotal.toFixed(2)} an ${entry.payerName} — Wie bezahlen?`;
 
+    // When settling netto, also settle the credit splits (both sides cleared at once)
+    const creditSplitIds = creditTotal > 0
+      ? (creditEntries ?? []).flatMap(c => c.splits.map(s => s.id))
+      : [];
+
     const onAfterSettle = creditTotal > 0 ? () => {
-      setTimeout(() => Alert.alert(
-        '✅ Beglichen',
-        `Netto-Betrag wurde als beglichen markiert.\n\nDeine offenen Forderungen bleiben bestehen bis ${entry.payerName} sie begleicht.`
-      ), 300);
+      if (creditSplitIds.length > 0) {
+        supabase.from('expense_splits')
+          .update({ is_settled: true, settled_at: new Date().toISOString(), payment_method: 'Erhalten' })
+          .in('id', creditSplitIds)
+          .then(() => { fetchDebts(); loadHistory(); });
+      }
+      setTimeout(() => Alert.alert('✅ Beglichen', 'Die Zahlung wurde als beglichen markiert.'), 300);
     } : undefined;
 
     haptics.warning();
@@ -763,14 +766,6 @@ export default function SettleScreen() {
                         {/* Ich schulde dieser Person */}
                         {personDebts.map((entry, i) => {
                           const debtTotal = entry.splits.reduce((s, sp) => s + sp.amount, 0);
-                          // Use fresh creditsByPerson (useMemo, always up-to-date after fetchDebts)
-                          const freshCredits = creditsByPerson.filter(c =>
-                            c.debtorId === entry.payerId && c.currency === entry.currency
-                          );
-                          const creditTotal = freshCredits.reduce((s, c) =>
-                            s + c.splits.reduce((ss, sp) => ss + sp.amount, 0), 0
-                          );
-                          const nettoAmount = debtTotal - creditTotal;
                           const debtEntry: DebtEntry = { payerId: entry.payerId, payerName: entry.payerName, currency: entry.currency, splits: entry.splits };
                           return (
                             <View key={`d${i}`} style={[styles.entryBlock, i > 0 && styles.entryDivider]}>
@@ -793,19 +788,31 @@ export default function SettleScreen() {
                                   {entry.currency} {debtTotal.toFixed(2)}
                                 </Text>
                               </View>
-                              {nettoAmount > 0 && (
-                                <TouchableOpacity
-                                  style={styles.settleBtn}
-                                  onPress={() => handleSettlePress(debtEntry, freshCredits)}
-                                  activeOpacity={0.8}
-                                >
-                                  <Text style={styles.settleBtnText}>
-                                    {creditTotal > 0
-                                      ? `Netto begleichen: ${entry.currency} ${nettoAmount.toFixed(2)}`
-                                      : 'Begleichen'}
-                                  </Text>
-                                </TouchableOpacity>
-                              )}
+                              {(() => {
+                                const freshCreditSplits = creditsByPerson
+                                  .filter(c => c.debtorId === entry.payerId && c.currency === entry.currency)
+                                  .flatMap(c => c.splits);
+                                const creditTotal = freshCreditSplits.reduce((s, sp) => s + sp.amount, 0);
+                                const nettoAmount = debtTotal - creditTotal;
+                                console.log('Button Check:', { payerId: entry.payerId, debtTotal, creditTotal, nettoAmount, freshCreditsCount: freshCreditSplits.length });
+                                if (nettoAmount <= 0) return null;
+                                const freshCreditEntries = creditsByPerson.filter(c =>
+                                  c.debtorId === entry.payerId && c.currency === entry.currency
+                                );
+                                return (
+                                  <TouchableOpacity
+                                    style={styles.settleBtn}
+                                    onPress={() => handleSettlePress(debtEntry, freshCreditEntries)}
+                                    activeOpacity={0.8}
+                                  >
+                                    <Text style={styles.settleBtnText}>
+                                      {creditTotal > 0
+                                        ? `Netto begleichen: ${entry.currency} ${nettoAmount.toFixed(2)}`
+                                        : 'Begleichen'}
+                                    </Text>
+                                  </TouchableOpacity>
+                                );
+                              })()}
                             </View>
                           );
                         })}
