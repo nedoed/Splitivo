@@ -157,6 +157,7 @@ export default function SettleScreen() {
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [reopeningId, setReopeningId] = useState<string | null>(null);
+  const [pendingPayments, setPendingPayments] = useState<any[]>([]);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
@@ -342,7 +343,8 @@ export default function SettleScreen() {
         debtor:profiles!expense_splits_user_id_fkey(id, username)
       `)
       .in('expense_id', expenseIds)
-      .eq('is_settled', false);
+      .eq('is_settled', false)
+      .eq('payment_pending', false);
 
     if (!splits) {
       setGroupedData({});
@@ -462,6 +464,30 @@ export default function SettleScreen() {
     setHistoryLoading(false);
   };
 
+  const loadPendingPayments = async () => {
+    const { data: userData } = await supabase.auth.getUser();
+    if (!userData.user) return;
+    const userId = userData.user.id;
+    const { data: myExpenses } = await supabase.from('expenses').select('id').eq('paid_by', userId);
+    const myExpenseIds = (myExpenses ?? []).map((e: any) => e.id);
+    if (myExpenseIds.length === 0) { setPendingPayments([]); return; }
+    const { data } = await supabase
+      .from('expense_splits')
+      .select(`
+        id, amount, pending_method, user_id,
+        expenses:expenses!expense_id(
+          description, currency, paid_by,
+          groups:groups!group_id(name),
+          payer:profiles!expenses_paid_by_fkey(username)
+        ),
+        debtor:profiles!expense_splits_user_id_fkey(username)
+      `)
+      .in('expense_id', myExpenseIds)
+      .eq('payment_pending', true)
+      .eq('is_settled', false);
+    setPendingPayments(data ?? []);
+  };
+
   const reopenDebts = async (splitIds: string[], groupId: string) => {
     setReopeningId(groupId);
     try {
@@ -496,6 +522,7 @@ export default function SettleScreen() {
     setLoading(true);
     fetchDebts();
     loadHistory();
+    loadPendingPayments();
   }, []));
 
   // ── Settle actions ───────────────────────────────────────────────────────────
@@ -547,54 +574,39 @@ export default function SettleScreen() {
         `Netto zu zahlen: ${currency} ${nettoAmount.toFixed(2)}`
       : `${currency} ${debtTotal.toFixed(2)} an ${entry.payerName} — Wie bezahlen?`;
 
-    // When settling netto, also settle the credit splits (both sides cleared at once)
-    const creditSplitIds = creditTotal > 0
-      ? (creditEntries ?? []).flatMap(c => c.splits.map(s => s.id))
-      : [];
-
-    const onAfterSettle = creditTotal > 0 ? () => {
-      if (creditSplitIds.length > 0) {
-        supabase.from('expense_splits')
-          .update({ is_settled: true, settled_at: new Date().toISOString(), payment_method: 'Erhalten' })
-          .in('id', creditSplitIds)
-          .then(() => { fetchDebts(); loadHistory(); });
-      }
-      setTimeout(() => Alert.alert('✅ Beglichen', 'Die Zahlung wurde als beglichen markiert.'), 300);
-    } : undefined;
+    const markPending = async (method: string) => {
+      const splitIds = entry.splits.map(s => s.id);
+      const { error } = await supabase
+        .from('expense_splits')
+        .update({ payment_pending: true, pending_method: method })
+        .in('id', splitIds);
+      if (error) { Alert.alert('Fehler', error.message); return; }
+      haptics.success();
+      await Promise.all([fetchDebts(), loadPendingPayments()]);
+      Alert.alert('📤 Zahlung gesendet', `${entry.payerName} muss die Zahlung noch bestätigen.`);
+    };
 
     haptics.warning();
     Alert.alert(title, message, [
       { text: 'Abbrechen', style: 'cancel' },
       {
         text: '💙 TWINT',
-        onPress: async () => {
-          const opened = await payWithTwint();
-          if (opened) askSettled(entry, 'TWINT', onAfterSettle);
-        },
+        onPress: async () => { await payWithTwint(); await markPending('TWINT'); },
       },
       {
         text: '🟣 WERO',
-        onPress: async () => {
-          const opened = await payWithWero();
-          if (opened) askSettled(entry, 'WERO', onAfterSettle);
-        },
+        onPress: async () => { await payWithWero(); await markPending('WERO'); },
       },
       {
         text: '🔵 PayPal',
-        onPress: async () => {
-          const opened = await payWithPayPal(entry.payerId);
-          if (opened) askSettled(entry, 'PayPal', onAfterSettle);
-        },
+        onPress: async () => { await payWithPayPal(entry.payerId); await markPending('PayPal'); },
       },
       {
         text: '🏦 Banküberweisung',
-        onPress: async () => {
-          const shown = await showBankDetails(entry.payerId);
-          if (shown) askSettled(entry, 'Banküberweisung', onAfterSettle);
-        },
+        onPress: async () => { await showBankDetails(entry.payerId); await markPending('Banküberweisung'); },
       },
-      { text: '💵 Bar',       onPress: () => markSplitsSettled(entry.splits, 'Bar', entry.payerId, onAfterSettle) },
-      { text: '✅ Sonstiges', onPress: () => markSplitsSettled(entry.splits, 'Sonstiges', entry.payerId, onAfterSettle) },
+      { text: '💵 Bar',       onPress: () => markPending('Bar') },
+      { text: '✅ Sonstiges', onPress: () => markPending('Sonstiges') },
     ]);
   };
 
@@ -663,6 +675,36 @@ export default function SettleScreen() {
     ]);
   };
 
+  const confirmReceivedPayment = (payment: any) => {
+    const currency = payment.expenses?.currency ?? 'CHF';
+    Alert.alert(
+      'Zahlung bestätigen?',
+      `${payment.debtor?.username} hat ${currency} ${payment.amount.toFixed(2)} bezahlt.\n\nZahlung als erhalten bestätigen?`,
+      [
+        { text: 'Nein', style: 'cancel' },
+        {
+          text: 'Ja, bestätigen ✓',
+          onPress: async () => {
+            const { error } = await supabase
+              .from('expense_splits')
+              .update({
+                is_settled: true,
+                settled_at: new Date().toISOString(),
+                payment_method: payment.pending_method,
+                payment_pending: false,
+                pending_method: null,
+              })
+              .eq('id', payment.id);
+            if (error) { Alert.alert('Fehler', error.message); return; }
+            haptics.success();
+            Alert.alert('✅ Bestätigt', 'Zahlung wurde als erhalten markiert.');
+            await Promise.all([fetchDebts(), loadHistory(), loadPendingPayments()]);
+          },
+        },
+      ]
+    );
+  };
+
   // ── Render ───────────────────────────────────────────────────────────────────
   const hasMultiCurrency = Object.keys({ ...totalOweByCurrency, ...totalOwedByCurrency }).length > 1;
 
@@ -721,11 +763,50 @@ export default function SettleScreen() {
               refreshControl={
                 <RefreshControl
                   refreshing={refreshing}
-                  onRefresh={() => { setRefreshing(true); fetchDebts(); }}
+                  onRefresh={() => { setRefreshing(true); fetchDebts(); loadPendingPayments(); }}
                   tintColor={theme.primary}
                 />
               }
             >
+              {/* Ausstehende Zahlungen */}
+              {pendingPayments.length > 0 && (
+                <View style={{
+                  backgroundColor: theme.card, borderRadius: 16, marginBottom: 12,
+                  borderLeftWidth: 4, borderLeftColor: '#FFC107', overflow: 'hidden',
+                  shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2,
+                }}>
+                  <View style={{ padding: 16, paddingBottom: 4 }}>
+                    <Text style={{ fontWeight: '700', fontSize: 15, color: '#F59E0B' }}>⏳ Ausstehende Zahlungen</Text>
+                  </View>
+                  {pendingPayments.map((payment: any) => (
+                    <View key={payment.id} style={{ paddingHorizontal: 16, paddingBottom: 12 }}>
+                      <View style={{ backgroundColor: theme.inputBg, borderRadius: 12, padding: 12 }}>
+                        <Text style={{ fontWeight: '600', color: theme.text, fontSize: 14 }}>
+                          {payment.debtor?.username} hat {payment.expenses?.currency ?? 'CHF'} {payment.amount.toFixed(2)} bezahlt
+                        </Text>
+                        <Text style={{ color: theme.textSecondary, fontSize: 12, marginTop: 2 }}>
+                          via {payment.pending_method}
+                          {payment.expenses?.groups?.name ? ` · ${payment.expenses.groups.name}` : ''}
+                          {payment.expenses?.description ? `: ${payment.expenses.description}` : ''}
+                        </Text>
+                        <TouchableOpacity
+                          onPress={() => confirmReceivedPayment(payment)}
+                          style={{
+                            backgroundColor: '#4CAF5015', borderRadius: 10,
+                            padding: 10, alignItems: 'center', marginTop: 10,
+                            flexDirection: 'row', justifyContent: 'center', gap: 6,
+                          }}
+                          activeOpacity={0.7}
+                        >
+                          <Ionicons name="checkmark-circle" size={18} color="#4CAF50" />
+                          <Text style={{ color: '#4CAF50', fontWeight: '600', fontSize: 14 }}>Zahlung bestätigen ✓</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              )}
+
               {/* Umrechnungskurs */}
               <TouchableOpacity
                 onPress={() => { haptics.light(); setShowExchangeRate(v => !v); }}
