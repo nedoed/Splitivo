@@ -365,24 +365,55 @@ export default function SettleScreen() {
   const loadHistory = async () => {
     const { data: userData } = await supabase.auth.getUser();
     if (!userData.user) return;
+    const userId = userData.user.id;
     setHistoryLoading(true);
-    const { data } = await supabase
+
+    const selectQuery = `
+      id, amount, settled_at, payment_method, user_id,
+      expense:expenses!expense_id(
+        description, amount, currency, date, paid_by,
+        group:groups!group_id(id, name),
+        payer:profiles!expenses_paid_by_fkey(username, avatar_url)
+      ),
+      debtor:profiles!expense_splits_user_id_fkey(username, avatar_url)
+    `;
+
+    // Query 1: splits I paid (I'm the debtor)
+    const { data: paid } = await supabase
       .from('expense_splits')
-      .select(`
-        id, amount, settled_at, payment_method, user_id,
-        expense:expenses!expense_id(
-          description, amount, currency, date, paid_by,
-          group:groups!group_id(id, name),
-          payer:profiles!expenses_paid_by_fkey(username, avatar_url)
-        ),
-        debtor:profiles!expense_splits_user_id_fkey(username, avatar_url)
-      `)
-      .eq('user_id', userData.user.id)
+      .select(selectQuery)
+      .eq('user_id', userId)
       .eq('is_settled', true)
       .not('settled_at', 'is', null)
       .order('settled_at', { ascending: false })
       .limit(50);
-    setHistory((data as HistoryItem[] | null) ?? []);
+
+    // Query 2: splits I received (I'm the creditor — expense paid_by me)
+    const { data: myExpenses } = await supabase
+      .from('expenses')
+      .select('id')
+      .eq('paid_by', userId);
+    const myExpenseIds = (myExpenses ?? []).map((e: any) => e.id);
+
+    let received: any[] = [];
+    if (myExpenseIds.length > 0) {
+      const { data: receivedData } = await supabase
+        .from('expense_splits')
+        .select(selectQuery)
+        .in('expense_id', myExpenseIds)
+        .neq('user_id', userId)
+        .eq('is_settled', true)
+        .not('settled_at', 'is', null)
+        .order('settled_at', { ascending: false })
+        .limit(50);
+      received = receivedData ?? [];
+    }
+
+    const merged = [...(paid ?? []), ...received]
+      .sort((a, b) => new Date(b.settled_at).getTime() - new Date(a.settled_at).getTime())
+      .slice(0, 100);
+
+    setHistory(merged as HistoryItem[]);
     setHistoryLoading(false);
   };
 
@@ -553,8 +584,7 @@ export default function SettleScreen() {
               .in('id', entry.splits.map(s => s.id));
             if (error) throw error;
             haptics.success();
-            fetchDebts();
-            loadHistory();
+            await Promise.all([fetchDebts(), loadHistory()]);
           } catch (err: any) {
             Alert.alert('Fehler', err.message);
           }
@@ -720,7 +750,9 @@ export default function SettleScreen() {
                                   activeOpacity={0.8}
                                 >
                                   <Text style={styles.settleBtnText}>
-                                    {creditTotal > 0 ? 'Netto begleichen' : 'Begleichen'}
+                                    {creditTotal > 0
+                                      ? `Netto begleichen: ${entry.currency} ${nettoAmount.toFixed(2)}`
+                                      : 'Begleichen'}
                                   </Text>
                                 </TouchableOpacity>
                               )}

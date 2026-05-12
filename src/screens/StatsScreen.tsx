@@ -298,8 +298,18 @@ export default function StatsScreen() {
       byCur[cur].push(e);
     });
 
+    // All group expenses per currency (for topExpenses — includes expenses others paid)
+    const allByCur: Record<string, Expense[]> = {};
+    exps.forEach((e) => {
+      const cur = e.currency ?? 'CHF';
+      if (!allByCur[cur]) allByCur[cur] = [];
+      allByCur[cur].push(e);
+    });
+
     const newStats: Record<string, CurrencyStats> = {};
-    Object.entries(byCur).forEach(([cur, curExps]) => {
+    const allCurrencies = new Set([...Object.keys(byCur), ...Object.keys(allByCur)]);
+    allCurrencies.forEach((cur) => {
+      const curExps = byCur[cur] ?? [];
       const total = curExps.reduce((s, e) => s + e.amount, 0);
       const count = curExps.length;
 
@@ -317,7 +327,7 @@ export default function StatsScreen() {
           pct: total > 0 ? Math.round((amount / total) * 100) : 0,
         }));
 
-      const topExpenses = [...curExps].sort((a, b) => b.amount - a.amount).slice(0, 5);
+      const topExpenses = [...(allByCur[cur] ?? [])].sort((a, b) => b.amount - a.amount).slice(0, 5);
 
       newStats[cur] = {
         total: parseFloat(total.toFixed(2)),
@@ -378,7 +388,7 @@ export default function StatsScreen() {
     const trendPct = prevPaid > 0.01 ? ((currentTotal - prevPaid) / prevPaid) * 100 : null;
 
     // ── State setzen ──────────────────────────────────────────────────────────
-    const currencyList = Object.keys(newStats).sort();
+    const currencyList = [...allCurrencies].sort();
     setCurrencies(currencyList);
     setStatsByCurrency(newStats);
     setTotalPaid(currentTotal);
