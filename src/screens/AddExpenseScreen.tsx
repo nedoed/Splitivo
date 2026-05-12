@@ -63,7 +63,7 @@ export default function AddExpenseScreen({ route, navigation }: any) {
 
   const getPaidByName = () => {
     const member = members.find((m) => m.user_id === paidBy);
-    return (member as any)?.profile?.username ?? 'Auswählen...';
+    return (member as any)?.profiles?.username ?? 'Auswählen...';
   };
 
   const toggleMember = (userId: string) => {
@@ -410,8 +410,7 @@ Erkenne alle einzelnen Positionen auf dem Kassenbon.`,
         <View style={styles.membersList}>
           {members.map((member) => {
             const isSelected = selectedMembers.includes(member.user_id);
-            const profile = (member as any).profile;
-            const name = profile?.username ?? 'Unbekannt';
+            const name = (member as any).profiles?.username ?? 'Unbekannt';
             return (
               <TouchableOpacity
                 key={member.user_id}
@@ -463,8 +462,7 @@ Erkenne alle einzelnen Positionen auf dem Kassenbon.`,
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>Wer hat bezahlt?</Text>
             {members.map((member) => {
-              const profile = (member as any).profile;
-              const name = profile?.username ?? 'Unbekannt';
+              const name = (member as any).profiles?.username ?? 'Unbekannt';
               const isSelected = paidBy === member.user_id;
               return (
                 <TouchableOpacity
