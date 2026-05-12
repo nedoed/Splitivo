@@ -530,54 +530,6 @@ export default function StatsScreen() {
             </View>
           )}
 
-          {/* ── Übersicht-Karten ──────────────────────────────────────────────── */}
-          <View style={styles.overviewRow}>
-            {/* Ausgaben */}
-            <View style={styles.overviewCard}>
-              <Text style={styles.overviewValue}>
-                {currencies.length > 1
-                  ? Object.values(statsByCurrency).reduce((s, cs) => s + cs.count, 0)
-                  : totalPaid >= 1000 ? `${(totalPaid / 1000).toFixed(1)}k` : totalPaid.toFixed(0)}
-              </Text>
-              <Text style={styles.overviewLabel}>Ausgaben</Text>
-              {currencies.length > 1 && (
-                <Text style={styles.overviewCurrencyHint}>{currencies.join(' · ')}</Text>
-              )}
-            </View>
-
-            {/* Schulden */}
-            <View style={[styles.overviewCard, styles.overviewCardMiddle]}>
-              {Object.keys(oweByCurrency).length === 0 ? (
-                <>
-                  <Text style={[styles.overviewValue, { color: theme.textTertiary }]}>0</Text>
-                  <Text style={styles.overviewLabel}>Schulden</Text>
-                </>
-              ) : (
-                <>
-                  {Object.entries(oweByCurrency).sort().map(([cur, amount]) => (
-                    <Text
-                      key={cur}
-                      style={[
-                        amount > 99 ? styles.overviewValueSm : styles.overviewValue,
-                        { color: theme.danger, marginBottom: 1 },
-                      ]}
-                    >
-                      <Text style={styles.overviewInlineCur}>{cur} </Text>
-                      {amount.toFixed(0)}
-                    </Text>
-                  ))}
-                  <Text style={styles.overviewLabel}>Schulden</Text>
-                </>
-              )}
-            </View>
-
-            {/* Gruppen */}
-            <View style={styles.overviewCard}>
-              <Text style={styles.overviewValue}>{activeGroups}</Text>
-              <Text style={styles.overviewLabel}>Gruppen</Text>
-            </View>
-          </View>
-
           {/* ── Schulden-Übersicht pro Währung ────────────────────────────────── */}
           {(totalOwed > 0.01 || totalDebt > 0.01) && (
             <View style={styles.card}>

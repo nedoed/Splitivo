@@ -532,32 +532,35 @@ export default function SettleScreen() {
     );
   };
 
-  const confirmPaymentReceived = (entry: CreditEntry) => {
-    const total = entry.splits.reduce((s, sp) => s + sp.amount, 0);
-    Alert.alert(
-      'Zahlung erhalten?',
-      `Hast du ${entry.currency} ${total.toFixed(2)} von ${entry.debtorName} erhalten?`,
-      [
-        { text: 'Nein', style: 'cancel' },
-        {
-          text: 'Ja, erhalten ✓',
-          onPress: async () => {
-            try {
-              const { error } = await supabase
-                .from('expense_splits')
-                .update({ is_settled: true, settled_at: new Date().toISOString(), payment_method: 'Erhalten' })
-                .in('id', entry.splits.map(s => s.id));
-              if (error) throw error;
-              haptics.success();
-              fetchDebts();
-              loadHistory();
-            } catch (err: any) {
-              Alert.alert('Fehler', err.message);
-            }
-          },
+  const confirmPaymentReceived = (entry: CreditEntry, nettoAmount: number, debtAmount: number) => {
+    const creditTotal = entry.splits.reduce((s, sp) => s + sp.amount, 0);
+    const message = debtAmount > 0
+      ? `${entry.debtorName} schuldet dir: ${entry.currency} ${creditTotal.toFixed(2)}\n` +
+        `Du schuldest ${entry.debtorName}: ${entry.currency} ${debtAmount.toFixed(2)}\n` +
+        `─────────────────────────────\n` +
+        `Netto erhalten: ${entry.currency} ${nettoAmount.toFixed(2)}`
+      : `Hast du ${entry.currency} ${creditTotal.toFixed(2)} von ${entry.debtorName} erhalten?`;
+
+    Alert.alert('Zahlung erhalten?', message, [
+      { text: 'Nein', style: 'cancel' },
+      {
+        text: 'Ja, erhalten ✓',
+        onPress: async () => {
+          try {
+            const { error } = await supabase
+              .from('expense_splits')
+              .update({ is_settled: true, settled_at: new Date().toISOString(), payment_method: 'Erhalten' })
+              .in('id', entry.splits.map(s => s.id));
+            if (error) throw error;
+            haptics.success();
+            fetchDebts();
+            loadHistory();
+          } catch (err: any) {
+            Alert.alert('Fehler', err.message);
+          }
         },
-      ]
-    );
+      },
+    ]);
   };
 
   // ── Render ───────────────────────────────────────────────────────────────────
@@ -750,20 +753,30 @@ export default function SettleScreen() {
                                 {entry.currency} {entry.splits.reduce((s, sp) => s + sp.amount, 0).toFixed(2)}
                               </Text>
                             </View>
-                            <TouchableOpacity
-                              onPress={() => confirmPaymentReceived(entry)}
-                              style={{
-                                flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-                                backgroundColor: '#4CAF5015', borderRadius: 10,
-                                padding: 10, marginTop: 8, gap: 6,
-                              }}
-                              activeOpacity={0.7}
-                            >
-                              <Ionicons name="checkmark-circle-outline" size={18} color="#4CAF50" />
-                              <Text style={{ color: '#4CAF50', fontWeight: '600', fontSize: 14 }}>
-                                Zahlung erhalten
-                              </Text>
-                            </TouchableOpacity>
+                            {(() => {
+                              const creditTotal = entry.splits.reduce((s, sp) => s + sp.amount, 0);
+                              const debtToThisPerson = debtsByPerson
+                                .filter(d => d.payerId === entry.debtorId && d.currency === entry.currency)
+                                .reduce((s, d) => s + d.splits.reduce((ss, sp) => ss + sp.amount, 0), 0);
+                              const nettoReceived = creditTotal - debtToThisPerson;
+                              if (nettoReceived <= 0) return null;
+                              return (
+                                <TouchableOpacity
+                                  onPress={() => confirmPaymentReceived(entry, nettoReceived, debtToThisPerson)}
+                                  style={{
+                                    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+                                    backgroundColor: '#4CAF5015', borderRadius: 10,
+                                    padding: 10, marginTop: 8, gap: 6,
+                                  }}
+                                  activeOpacity={0.7}
+                                >
+                                  <Ionicons name="checkmark-circle-outline" size={18} color="#4CAF50" />
+                                  <Text style={{ color: '#4CAF50', fontWeight: '600', fontSize: 14 }}>
+                                    Zahlung erhalten: {entry.currency} {nettoReceived.toFixed(2)}
+                                  </Text>
+                                </TouchableOpacity>
+                              );
+                            })()}
                           </View>
                         ))}
 
