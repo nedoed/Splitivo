@@ -148,6 +148,43 @@ export default function SettleScreen() {
     [groupedData]
   );
 
+  const debtsByPerson = useMemo(() => {
+    const map: Record<string, {
+      payerId: string; payerName: string; currency: string;
+      splits: SplitItem[]; creditEntries: CreditEntry[];
+    }> = {};
+    Object.values(groupedData).forEach(group => {
+      group.debts.forEach(entry => {
+        const key = `${entry.payerId}|${entry.currency}`;
+        if (!map[key]) map[key] = { payerId: entry.payerId, payerName: entry.payerName, currency: entry.currency, splits: [], creditEntries: [] };
+        map[key].splits.push(...entry.splits);
+        group.credits
+          .filter(c => c.debtorId === entry.payerId && c.currency === entry.currency)
+          .forEach(c => { map[key].creditEntries.push(c); });
+      });
+    });
+    return Object.values(map);
+  }, [groupedData]);
+
+  const creditsByPerson = useMemo(() => {
+    const map: Record<string, { debtorId: string; debtorName: string; currency: string; splits: SplitItem[] }> = {};
+    Object.values(groupedData).forEach(group => {
+      group.credits.forEach(entry => {
+        const key = `${entry.debtorId}|${entry.currency}`;
+        if (!map[key]) map[key] = { debtorId: entry.debtorId, debtorName: entry.debtorName, currency: entry.currency, splits: [] };
+        map[key].splits.push(...entry.splits);
+      });
+    });
+    return Object.values(map);
+  }, [groupedData]);
+
+  const personIds = useMemo(() => {
+    const ids = new Set<string>();
+    debtsByPerson.forEach(d => ids.add(d.payerId));
+    creditsByPerson.forEach(c => ids.add(c.debtorId));
+    return [...ids];
+  }, [debtsByPerson, creditsByPerson]);
+
   const nettoByPerson = useMemo(() => {
     const result: Record<string, { name: string; byCurrency: Record<string, number> }> = {};
     Object.values(groupedData).forEach(group => {
@@ -301,11 +338,16 @@ export default function SettleScreen() {
       if (newData[gId].debts.length === 0 && newData[gId].credits.length === 0) delete newData[gId];
     });
 
-    // Auto-expand all groups on first load
+    // Auto-expand all persons on first load
     setExpandedGroups(prev => {
       if (Object.keys(prev).length > 0) return prev;
+      const ids = new Set<string>();
+      Object.values(newData).forEach(group => {
+        group.debts.forEach(d => ids.add(d.payerId));
+        group.credits.forEach(c => ids.add(c.debtorId));
+      });
       const expanded: Record<string, boolean> = {};
-      Object.keys(newData).forEach(gId => { expanded[gId] = true; });
+      ids.forEach(pid => { expanded[pid] = true; });
       return expanded;
     });
 
@@ -491,8 +533,19 @@ export default function SettleScreen() {
     );
   };
 
+  const handleSettlePress = (entry: DebtEntry, creditEntries: CreditEntry[]) => {
+    haptics.light();
+    Alert.alert(
+      'Beträge prüfen',
+      'Hast du alle Positionen und Beträge auf ihre Richtigkeit geprüft?',
+      [
+        { text: 'Nochmals prüfen', style: 'cancel' },
+        { text: 'Ja, alles korrekt', onPress: () => showSettleOptions(entry, creditEntries) },
+      ]
+    );
+  };
+
   // ── Render ───────────────────────────────────────────────────────────────────
-  const groupEntries = Object.entries(groupedData);
   const hasMultiCurrency = Object.keys({ ...totalOweByCurrency, ...totalOwedByCurrency }).length > 1;
 
   return (
@@ -591,126 +644,105 @@ export default function SettleScreen() {
                 </View>
               )}
 
-              {/* Gruppen-Karten */}
-              {groupEntries.map(([groupId, group]) => (
-                <View key={groupId} style={styles.groupCard}>
-                  <TouchableOpacity
-                    onPress={() => { haptics.light(); toggleGroup(groupId); }}
-                    style={styles.groupHeader}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.groupHeaderName}>{group.name}</Text>
-                    <Ionicons
-                      name={expandedGroups[groupId] ? 'chevron-up' : 'chevron-down'}
-                      size={20}
-                      color={theme.textSecondary}
-                    />
-                  </TouchableOpacity>
+              {/* Personen-Karten */}
+              {personIds.map(personId => {
+                const personDebts = debtsByPerson.filter(d => d.payerId === personId);
+                const personCredits = creditsByPerson.filter(c => c.debtorId === personId);
+                const personName = personDebts[0]?.payerName ?? personCredits[0]?.debtorName ?? 'Unbekannt';
 
-                  {expandedGroups[groupId] && (
-                    <View style={styles.groupBody}>
+                return (
+                  <View key={personId} style={styles.groupCard}>
+                    <TouchableOpacity
+                      onPress={() => { haptics.light(); toggleGroup(personId); }}
+                      style={styles.groupHeader}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.groupHeaderName}>{personName}</Text>
+                      <Ionicons
+                        name={expandedGroups[personId] ? 'chevron-up' : 'chevron-down'}
+                        size={20}
+                        color={theme.textSecondary}
+                      />
+                    </TouchableOpacity>
 
-                      {/* Ich schulde */}
-                      {group.debts.map((entry, i) => (
-                        <View key={`d${i}`} style={[styles.entryBlock, i > 0 && styles.entryDivider]}>
-                          <Text style={styles.entryTitleRed}>
-                            Du schuldest {entry.payerName}
-                            {group.debts.filter(d => d.payerName === entry.payerName).length > 1
-                              ? ` (${entry.currency})` : ''}
-                          </Text>
-                          {entry.splits.map(split => (
-                            <View key={split.id} style={styles.splitRow}>
-                              <Text style={styles.splitDesc} numberOfLines={1}>
-                                └ {split.expenses?.description ?? '–'}
+                    {expandedGroups[personId] && (
+                      <View style={styles.groupBody}>
+
+                        {/* Ich schulde dieser Person */}
+                        {personDebts.map((entry, i) => {
+                          const debtTotal = entry.splits.reduce((s, sp) => s + sp.amount, 0);
+                          const creditTotal = entry.creditEntries.reduce((s, c) => s + c.splits.reduce((ss, sp) => ss + sp.amount, 0), 0);
+                          const nettoAmount = debtTotal - creditTotal;
+                          const debtEntry: DebtEntry = { payerId: entry.payerId, payerName: entry.payerName, currency: entry.currency, splits: entry.splits };
+                          return (
+                            <View key={`d${i}`} style={[styles.entryBlock, i > 0 && styles.entryDivider]}>
+                              <Text style={styles.entryTitleRed}>
+                                Du schuldest {personName}{personDebts.length > 1 ? ` (${entry.currency})` : ''}
                               </Text>
-                              <Text style={styles.splitAmount}>
-                                {entry.currency} {split.amount.toFixed(2)}
-                              </Text>
+                              {entry.splits.map(split => (
+                                <View key={split.id} style={styles.splitRow}>
+                                  <Text style={styles.splitDesc} numberOfLines={1}>
+                                    └ {split.expenses?.groups?.name ? `${split.expenses.groups.name}: ` : ''}{split.expenses?.description ?? '–'}
+                                  </Text>
+                                  <Text style={styles.splitAmount}>
+                                    {entry.currency} {split.amount.toFixed(2)}
+                                  </Text>
+                                </View>
+                              ))}
+                              <View style={styles.totalRow}>
+                                <Text style={styles.totalLabelRed}>Total</Text>
+                                <Text style={styles.totalAmountRed}>
+                                  {entry.currency} {debtTotal.toFixed(2)}
+                                </Text>
+                              </View>
+                              {nettoAmount > 0 && (
+                                <TouchableOpacity
+                                  style={styles.settleBtn}
+                                  onPress={() => handleSettlePress(debtEntry, entry.creditEntries)}
+                                  activeOpacity={0.8}
+                                >
+                                  <Text style={styles.settleBtnText}>
+                                    {creditTotal > 0 ? 'Netto begleichen' : 'Begleichen'}
+                                  </Text>
+                                </TouchableOpacity>
+                              )}
                             </View>
-                          ))}
-                          <View style={styles.totalRow}>
-                            <Text style={styles.totalLabelRed}>Total</Text>
-                            <Text style={styles.totalAmountRed}>
-                              {entry.currency} {entry.splits.reduce((s, sp) => s + sp.amount, 0).toFixed(2)}
-                            </Text>
-                          </View>
-                          <TouchableOpacity
-                            style={styles.settleBtn}
-                            onPress={() => showSettleOptions(entry, group.credits)}
-                            activeOpacity={0.8}
+                          );
+                        })}
+
+                        {/* Diese Person schuldet mir */}
+                        {personCredits.map((entry, i) => (
+                          <View
+                            key={`c${i}`}
+                            style={[styles.entryBlock, (personDebts.length > 0 || i > 0) && styles.entryDivider]}
                           >
-                            <Text style={styles.settleBtnText}>
-                              {group.credits.some(c => c.debtorId === entry.payerId && c.currency === entry.currency)
-                                ? 'Netto begleichen'
-                                : 'Alle begleichen'}
+                            <Text style={styles.entryTitleGreen}>
+                              {personName} schuldet dir{personCredits.length > 1 ? ` (${entry.currency})` : ''}
                             </Text>
-                          </TouchableOpacity>
-                        </View>
-                      ))}
-
-                      {/* Mir wird geschuldet */}
-                      {group.credits.map((entry, i) => (
-                        <View
-                          key={`c${i}`}
-                          style={[styles.entryBlock, (group.debts.length > 0 || i > 0) && styles.entryDivider]}
-                        >
-                          <Text style={styles.entryTitleGreen}>
-                            {entry.debtorName} schuldet dir
-                            {group.credits.filter(c => c.debtorName === entry.debtorName).length > 1
-                              ? ` (${entry.currency})` : ''}
-                          </Text>
-                          {entry.splits.map(split => (
-                            <View key={split.id} style={styles.splitRow}>
-                              <Text style={styles.splitDesc} numberOfLines={1}>
-                                └ {split.expenses?.description ?? '–'}
-                              </Text>
-                              <Text style={styles.splitAmount}>
-                                {entry.currency} {split.amount.toFixed(2)}
+                            {entry.splits.map(split => (
+                              <View key={split.id} style={styles.splitRow}>
+                                <Text style={styles.splitDesc} numberOfLines={1}>
+                                  └ {split.expenses?.groups?.name ? `${split.expenses.groups.name}: ` : ''}{split.expenses?.description ?? '–'}
+                                </Text>
+                                <Text style={styles.splitAmount}>
+                                  {entry.currency} {split.amount.toFixed(2)}
+                                </Text>
+                              </View>
+                            ))}
+                            <View style={styles.totalRow}>
+                              <Text style={styles.totalLabelGreen}>Total</Text>
+                              <Text style={styles.totalAmountGreen}>
+                                {entry.currency} {entry.splits.reduce((s, sp) => s + sp.amount, 0).toFixed(2)}
                               </Text>
                             </View>
-                          ))}
-                          <View style={styles.totalRow}>
-                            <Text style={styles.totalLabelGreen}>Total</Text>
-                            <Text style={styles.totalAmountGreen}>
-                              {entry.currency} {entry.splits.reduce((s, sp) => s + sp.amount, 0).toFixed(2)}
-                            </Text>
                           </View>
-                        </View>
-                      ))}
+                        ))}
 
-                      {/* Netto pro Person in dieser Gruppe */}
-                      {(() => {
-                        const netto = getGroupNetto(group);
-                        const entries = Object.entries(netto);
-                        if (entries.length === 0) return null;
-                        return (
-                          <View style={styles.groupNettoBlock}>
-                            {entries.map(([personId, person]) =>
-                              Object.entries(person.byCurrency).map(([currency, amount]) => {
-                                const isPositive = amount > 0;
-                                return (
-                                  <View
-                                    key={`${personId}-${currency}`}
-                                    style={[styles.groupNettoRow, { backgroundColor: isPositive ? '#4CAF5018' : '#F4433618' }]}
-                                  >
-                                    <Text style={[styles.groupNettoLabel, { color: isPositive ? '#4CAF50' : '#F44336' }]}>
-                                      {isPositive ? `Netto: ${person.name} zahlt dir: ` : `Netto: Du zahlst ${person.name}: `}
-                                    </Text>
-                                    <Text style={[styles.groupNettoAmount, { color: isPositive ? '#4CAF50' : '#F44336' }]}>
-                                      {isPositive ? '+' : ''}{currency} {Math.abs(amount).toFixed(2)}
-                                    </Text>
-                                  </View>
-                                );
-                              })
-                            )}
-                          </View>
-                        );
-                      })()}
-
-                    </View>
-                  )}
-                </View>
-              ))}
+                      </View>
+                    )}
+                  </View>
+                );
+              })}
 
               {/* Netto pro Person */}
               {Object.keys(nettoByPerson).length > 0 && (

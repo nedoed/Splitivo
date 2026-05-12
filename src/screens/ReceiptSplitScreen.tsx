@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   Modal, Alert, ActivityIndicator, TextInput, TouchableWithoutFeedback,
+  KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -420,10 +421,14 @@ export default function ReceiptSplitScreen({ route, navigation }: any) {
         animationType="slide"
         onRequestClose={() => setShowAddModal(false)}
       >
-        <TouchableWithoutFeedback onPress={() => setShowAddModal(false)}>
-          <View style={styles.modalOverlay}>
-            <TouchableWithoutFeedback>
-              <View style={styles.addModalCard}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={{ flex: 1 }}
+        >
+          <TouchableWithoutFeedback onPress={() => setShowAddModal(false)}>
+            <View style={styles.modalOverlay}>
+              <TouchableWithoutFeedback>
+                <View style={styles.addModalCard}>
                 <Text style={styles.modalTitle}>Position hinzufügen</Text>
 
                 <Text style={styles.addModalLabel}>Bezeichnung</Text>
@@ -461,10 +466,11 @@ export default function ReceiptSplitScreen({ route, navigation }: any) {
                 <TouchableOpacity style={styles.addModalConfirmBtn} onPress={confirmAddItem}>
                   <Text style={styles.addModalConfirmText}>Hinzufügen</Text>
                 </TouchableOpacity>
-              </View>
-            </TouchableWithoutFeedback>
-          </View>
-        </TouchableWithoutFeedback>
+                </View>
+              </TouchableWithoutFeedback>
+            </View>
+          </TouchableWithoutFeedback>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Zahler-Picker Modal */}
