@@ -70,9 +70,52 @@ interface HistoryItem {
   debtor: { username: string; avatar_url: string | null } | null;
 }
 
+interface GroupedHistoryItem {
+  id: string;
+  splitIds: string[];
+  settled_at: string | null;
+  payment_method: string | null;
+  currency: string;
+  totalAmount: number;
+  count: number;
+  debtor: { username: string; avatar_url: string | null } | null;
+  payer: { username: string; avatar_url: string | null } | null;
+  groupName: string | null;
+  debtorId: string;
+  payerId: string;
+}
+
 const PAYMENT_METHOD_ICON: Record<string, string> = {
   TWINT: '💙', WERO: '🟣', PayPal: '🔵', 'Banküberweisung': '🏦', Bar: '💵', Sonstiges: '✅', Erhalten: '✅',
 };
+
+function groupHistoryItems(items: HistoryItem[]): GroupedHistoryItem[] {
+  const map: Record<string, GroupedHistoryItem> = {};
+  items.forEach(item => {
+    const settledMin = item.settled_at
+      ? new Date(item.settled_at).toISOString().substring(0, 16)
+      : 'unknown';
+    const debtorId = item.user_id;
+    const payerId = item.expense?.paid_by ?? '';
+    const currency = item.expense?.currency ?? 'CHF';
+    const method = item.payment_method ?? 'Sonstiges';
+    const key = `${settledMin}|${debtorId}|${payerId}|${currency}|${method}`;
+    if (!map[key]) {
+      map[key] = {
+        id: item.id, splitIds: [], settled_at: item.settled_at,
+        payment_method: method, currency, totalAmount: 0, count: 0,
+        debtor: item.debtor, payer: item.expense?.payer ?? null,
+        groupName: item.expense?.group?.name ?? null, debtorId, payerId,
+      };
+    }
+    map[key].totalAmount += item.amount;
+    map[key].count += 1;
+    map[key].splitIds.push(item.id);
+  });
+  return Object.values(map).sort((a, b) =>
+    new Date(b.settled_at ?? 0).getTime() - new Date(a.settled_at ?? 0).getTime()
+  );
+}
 
 function getGroupNetto(group: GroupData): Record<string, { name: string; byCurrency: Record<string, number> }> {
   const result: Record<string, { name: string; byCurrency: Record<string, number> }> = {};
@@ -245,14 +288,16 @@ export default function SettleScreen() {
     return true;
   }), [history, searchQuery, selectedGroup, selectedPerson]);
 
-  const groupedHistory = useMemo(() => filteredHistory.reduce((acc, item) => {
+  const groupedItems = useMemo(() => groupHistoryItems(filteredHistory), [filteredHistory]);
+
+  const groupedHistory = useMemo(() => groupedItems.reduce((acc, item) => {
     if (!item.settled_at) return acc;
     const month = new Date(item.settled_at).toLocaleDateString('de-CH', { month: 'long', year: 'numeric' });
     const existing = acc.find(g => g.month === month);
     if (existing) existing.items.push(item);
     else acc.push({ month, items: [item] });
     return acc;
-  }, [] as { month: string; items: HistoryItem[] }[]), [filteredHistory]);
+  }, [] as { month: string; items: GroupedHistoryItem[] }[]), [groupedItems]);
 
   // ── Data fetching ────────────────────────────────────────────────────────────
   const fetchDebts = async () => {
@@ -417,17 +462,16 @@ export default function SettleScreen() {
     setHistoryLoading(false);
   };
 
-  const reopenDebt = async (splitId: string) => {
-    setReopeningId(splitId);
+  const reopenDebts = async (splitIds: string[], groupId: string) => {
+    setReopeningId(groupId);
     try {
       const { error } = await supabase
         .from('expense_splits')
         .update({ is_settled: false, settled_at: null, payment_method: null })
-        .eq('id', splitId);
+        .in('id', splitIds);
       if (error) throw error;
       haptics.success();
-      await loadHistory();
-      fetchDebts();
+      await Promise.all([loadHistory(), fetchDebts()]);
       Alert.alert('Erledigt', 'Die Zahlung wurde als offen markiert und erscheint wieder im Offen-Tab.');
     } catch (err: any) {
       haptics.error();
@@ -437,13 +481,13 @@ export default function SettleScreen() {
     }
   };
 
-  const confirmReopenDebt = (item: HistoryItem) => {
+  const confirmReopenDebt = (item: GroupedHistoryItem) => {
     Alert.alert(
       'Zahlung rückgängig machen?',
-      `Möchtest du die Zahlung von ${item.expense?.currency ?? 'CHF'} ${item.amount.toFixed(2)} wieder als offen markieren?\n\nSie erscheint dann wieder im Offen-Tab.`,
+      `Möchtest du ${item.count > 1 ? `${item.count} Zahlungen` : 'die Zahlung'} von ${item.currency} ${item.totalAmount.toFixed(2)} wieder als offen markieren?\n\nSie erscheinen dann wieder im Offen-Tab.`,
       [
         { text: 'Abbrechen', style: 'cancel' },
-        { text: 'Als offen markieren', style: 'destructive', onPress: () => reopenDebt(item.id) },
+        { text: 'Als offen markieren', style: 'destructive', onPress: () => reopenDebts(item.splitIds, item.id) },
       ]
     );
   };
@@ -719,7 +763,13 @@ export default function SettleScreen() {
                         {/* Ich schulde dieser Person */}
                         {personDebts.map((entry, i) => {
                           const debtTotal = entry.splits.reduce((s, sp) => s + sp.amount, 0);
-                          const creditTotal = entry.creditEntries.reduce((s, c) => s + c.splits.reduce((ss, sp) => ss + sp.amount, 0), 0);
+                          // Use fresh creditsByPerson (useMemo, always up-to-date after fetchDebts)
+                          const freshCredits = creditsByPerson.filter(c =>
+                            c.debtorId === entry.payerId && c.currency === entry.currency
+                          );
+                          const creditTotal = freshCredits.reduce((s, c) =>
+                            s + c.splits.reduce((ss, sp) => ss + sp.amount, 0), 0
+                          );
                           const nettoAmount = debtTotal - creditTotal;
                           const debtEntry: DebtEntry = { payerId: entry.payerId, payerName: entry.payerName, currency: entry.currency, splits: entry.splits };
                           return (
@@ -746,7 +796,7 @@ export default function SettleScreen() {
                               {nettoAmount > 0 && (
                                 <TouchableOpacity
                                   style={styles.settleBtn}
-                                  onPress={() => handleSettlePress(debtEntry, entry.creditEntries)}
+                                  onPress={() => handleSettlePress(debtEntry, freshCredits)}
                                   activeOpacity={0.8}
                                 >
                                   <Text style={styles.settleBtnText}>
@@ -1059,8 +1109,7 @@ export default function SettleScreen() {
             ) : (
               groupedHistory.map(({ month, items }) => {
                 const monthTotal = items.reduce((acc, item) => {
-                  const cur = item.expense?.currency ?? 'CHF';
-                  acc[cur] = (acc[cur] ?? 0) + item.amount;
+                  acc[item.currency] = (acc[item.currency] ?? 0) + item.totalAmount;
                   return acc;
                 }, {} as Record<string, number>);
 
@@ -1090,11 +1139,13 @@ export default function SettleScreen() {
                             </View>
                             <View style={styles.historyInfo}>
                               <Text style={styles.historyDesc} numberOfLines={1}>
-                                {item.expense?.description ?? '–'}
+                                {item.count > 1
+                                  ? `${item.count} Ausgaben beglichen`
+                                  : (item.groupName ?? '–')}
                               </Text>
                               <Text style={styles.historyMeta}>
-                                {item.expense?.group?.name ? `${item.expense.group.name} · ` : ''}
-                                {item.payment_method ?? 'Sonstiges'}
+                                {item.groupName && item.count === 1 ? `${item.groupName} · ` : ''}
+                                {item.payment_method}
                               </Text>
                               <View style={styles.historyFlow}>
                                 <View style={styles.historyMiniAvatar}>
@@ -1105,17 +1156,17 @@ export default function SettleScreen() {
                                 <Text style={styles.historyArrow}>→</Text>
                                 <View style={[styles.historyMiniAvatar, styles.historyMiniAvatarGreen]}>
                                   <Text style={styles.historyMiniAvatarText}>
-                                    {item.expense?.payer?.username?.[0]?.toUpperCase() ?? '?'}
+                                    {item.payer?.username?.[0]?.toUpperCase() ?? '?'}
                                   </Text>
                                 </View>
                                 <Text style={styles.historyFlowNames}>
-                                  {item.debtor?.username ?? '–'} → {item.expense?.payer?.username ?? '–'}
+                                  {item.debtor?.username ?? '–'} → {item.payer?.username ?? '–'}
                                 </Text>
                               </View>
                               <Text style={styles.historyDate}>{settledDate}</Text>
                             </View>
                             <Text style={styles.historyAmount}>
-                              {item.expense?.currency ?? 'CHF'} {item.amount.toFixed(2)}
+                              {item.currency} {item.totalAmount.toFixed(2)}
                             </Text>
                           </View>
                           <TouchableOpacity
