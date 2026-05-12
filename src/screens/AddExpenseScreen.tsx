@@ -125,7 +125,6 @@ export default function AddExpenseScreen({ route, navigation }: any) {
   "currency": "CHF",
   "description": "Migros Einkauf",
   "category": "food",
-  "date": "2026-05-07",
   "items": [
     { "name": "Milch", "price": 1.50, "quantity": 2, "total": 3.00 },
     { "name": "Brot", "price": 3.20, "quantity": 1, "total": 3.20 }
@@ -133,7 +132,6 @@ export default function AddExpenseScreen({ route, navigation }: any) {
 }
 Währung: CHF für Schweiz, EUR für Europa, USD für USA.
 Category: food, transport, accommodation, entertainment, shopping, health, other
-Datum: im Format YYYY-MM-DD. Falls kein Datum erkennbar: null zurückgeben.
 Erkenne alle einzelnen Positionen auf dem Kassenbon.`,
               },
             ],
@@ -164,20 +162,6 @@ Erkenne alle einzelnen Positionen auf dem Kassenbon.`,
           ? parsed.currency as 'CHF' | 'EUR' | 'USD'
           : currency;
 
-        const parsedDate = (() => {
-          try {
-            if (!parsed.date) return new Date();
-            const d = new Date(parsed.date);
-            if (isNaN(d.getTime())) return new Date();
-            if (d > new Date()) return new Date();
-            const oneYearAgo = new Date();
-            oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
-            if (d < oneYearAgo) return new Date();
-            return d;
-          } catch { return new Date(); }
-        })();
-        const parsedDateStr = parsedDate.toISOString().split('T')[0];
-
         if (Array.isArray(parsed.items) && parsed.items.length > 0) {
           haptics.success();
           setScanLoading(false);
@@ -190,7 +174,6 @@ Erkenne alle einzelnen Positionen auf dem Kassenbon.`,
               currency: detectedCurrency,
               description: parsed.description ?? '',
               category: mappedCategory,
-              date: parsedDateStr,
               items: parsed.items,
             },
           });
@@ -202,7 +185,6 @@ Erkenne alle einzelnen Positionen auf dem Kassenbon.`,
         if (parsed.description) setDescription(parsed.description);
         setCategory(mappedCategory);
         setCurrency(detectedCurrency);
-        setDate(parsedDateStr);
       } else {
         console.log('5. Kein JSON gefunden in:', content);
         Alert.alert('Hinweis', 'Betrag konnte nicht erkannt werden. Bitte manuell eingeben.');

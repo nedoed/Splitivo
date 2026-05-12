@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   Modal, Alert, ActivityIndicator, TextInput, TouchableWithoutFeedback,
-  KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -45,7 +44,6 @@ type ScanResult = {
   currency: string;
   description: string;
   category: string;
-  date?: string;
   items: Array<{ name: string; price: number; quantity: number; total: number }>;
 };
 
@@ -216,7 +214,7 @@ export default function ReceiptSplitScreen({ route, navigation }: any) {
           description: scanResult.description,
           category: scanResult.category,
           currency: scanResult.currency,
-          date: scanResult.date ?? new Date().toISOString().split('T')[0],
+          date: new Date().toISOString().split('T')[0],
           receipt_url: receiptUrl,
           receipt_items: items.map(({ name, price, quantity, total, assignedTo }) => ({
             name, price, quantity, total, assignedTo,
@@ -422,58 +420,51 @@ export default function ReceiptSplitScreen({ route, navigation }: any) {
         animationType="slide"
         onRequestClose={() => setShowAddModal(false)}
       >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={{ flex: 1 }}
-        >
-          <TouchableWithoutFeedback onPress={() => setShowAddModal(false)}>
-            <View style={[styles.modalOverlay, { justifyContent: 'flex-end' }]}>
-              <TouchableWithoutFeedback>
-                <View style={[styles.addModalCard, {
-                  paddingBottom: Platform.select({ ios: 40, android: 24 }),
-                }]}>
-                  <Text style={styles.modalTitle}>Position hinzufügen</Text>
+        <TouchableWithoutFeedback onPress={() => setShowAddModal(false)}>
+          <View style={styles.modalOverlay}>
+            <TouchableWithoutFeedback>
+              <View style={styles.addModalCard}>
+                <Text style={styles.modalTitle}>Position hinzufügen</Text>
 
-                  <Text style={styles.addModalLabel}>Bezeichnung</Text>
-                  <TextInput
-                    style={styles.addModalInput}
-                    placeholder="z.B. Mineralwasser"
-                    value={newItemName}
-                    onChangeText={setNewItemName}
-                    autoFocus
-                  />
+                <Text style={styles.addModalLabel}>Bezeichnung</Text>
+                <TextInput
+                  style={styles.addModalInput}
+                  placeholder="z.B. Mineralwasser"
+                  value={newItemName}
+                  onChangeText={setNewItemName}
+                  autoFocus
+                />
 
-                  <View style={{ flexDirection: 'row', gap: 12, marginBottom: 24 }}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.addModalLabel}>Menge</Text>
-                      <TextInput
-                        style={[styles.addModalInput, { textAlign: 'center', marginBottom: 0 }]}
-                        placeholder="1"
-                        value={newItemQuantity}
-                        onChangeText={setNewItemQuantity}
-                        keyboardType="number-pad"
-                      />
-                    </View>
-                    <View style={{ flex: 2 }}>
-                      <Text style={styles.addModalLabel}>Preis ({currency})</Text>
-                      <TextInput
-                        style={[styles.addModalInput, { textAlign: 'right', marginBottom: 0 }]}
-                        placeholder="0.00"
-                        value={newItemPrice}
-                        onChangeText={setNewItemPrice}
-                        keyboardType="decimal-pad"
-                      />
-                    </View>
+                <View style={{ flexDirection: 'row', gap: 12, marginBottom: 24 }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.addModalLabel}>Menge</Text>
+                    <TextInput
+                      style={[styles.addModalInput, { textAlign: 'center', marginBottom: 0 }]}
+                      placeholder="1"
+                      value={newItemQuantity}
+                      onChangeText={setNewItemQuantity}
+                      keyboardType="number-pad"
+                    />
                   </View>
-
-                  <TouchableOpacity style={styles.addModalConfirmBtn} onPress={confirmAddItem}>
-                    <Text style={styles.addModalConfirmText}>Hinzufügen</Text>
-                  </TouchableOpacity>
+                  <View style={{ flex: 2 }}>
+                    <Text style={styles.addModalLabel}>Preis ({currency})</Text>
+                    <TextInput
+                      style={[styles.addModalInput, { textAlign: 'right', marginBottom: 0 }]}
+                      placeholder="0.00"
+                      value={newItemPrice}
+                      onChangeText={setNewItemPrice}
+                      keyboardType="decimal-pad"
+                    />
+                  </View>
                 </View>
-              </TouchableWithoutFeedback>
-            </View>
-          </TouchableWithoutFeedback>
-        </KeyboardAvoidingView>
+
+                <TouchableOpacity style={styles.addModalConfirmBtn} onPress={confirmAddItem}>
+                  <Text style={styles.addModalConfirmText}>Hinzufügen</Text>
+                </TouchableOpacity>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
       </Modal>
 
       {/* Zahler-Picker Modal */}

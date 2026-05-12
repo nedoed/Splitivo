@@ -211,7 +211,7 @@ export default function ExpenseDetailScreen({ route, navigation }: any) {
 
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={styles.content}>
 
         {/* ── Hero-Karte ─────────────────────────────────────────────── */}
         <View style={styles.heroCard}>
@@ -267,12 +267,19 @@ export default function ExpenseDetailScreen({ route, navigation }: any) {
         {editMode && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Kategorie</Text>
-            <View style={styles.catGrid}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.catScroll}
+              nestedScrollEnabled
+              keyboardShouldPersistTaps="handled"
+            >
               {CATEGORIES.map((c) => (
                 <TouchableOpacity
                   key={c.value}
                   style={[styles.catChip, editCategory === c.value && styles.catChipActive]}
                   onPress={() => {
+                    console.log('[Kategorie] gewählt:', c.value, '| vorher:', editCategory);
                     haptics.selection();
                     setEditCategory(c.value);
                   }}
@@ -284,7 +291,7 @@ export default function ExpenseDetailScreen({ route, navigation }: any) {
                   </Text>
                 </TouchableOpacity>
               ))}
-            </View>
+            </ScrollView>
           </View>
         )}
 
@@ -461,10 +468,10 @@ function getStyles(theme: Theme) {
       textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10,
     },
 
-    catGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 4 },
+    catScroll: { marginBottom: 4 },
     catChip: {
       alignItems: 'center', backgroundColor: theme.card, borderRadius: 12,
-      paddingHorizontal: 12, paddingVertical: 10,
+      paddingHorizontal: 12, paddingVertical: 10, marginRight: 8,
       borderWidth: 1.5, borderColor: theme.border, minWidth: 72,
     },
     catChipActive: { backgroundColor: theme.primaryLight, borderColor: theme.primary },
