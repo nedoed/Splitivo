@@ -86,7 +86,7 @@ interface GroupedHistoryItem {
 }
 
 const PAYMENT_METHOD_ICON: Record<string, string> = {
-  TWINT: '💙', WERO: '🟣', PayPal: '🔵', 'Banküberweisung': '🏦', Bar: '💵', Sonstiges: '✅', Erhalten: '✅',
+  TWINT: '💙', WERO: '🟣', PayPal: '🔵', 'Banküberweisung': '🏦', Bar: '💵', Sonstiges: '✅', Erhalten: '✅', Verrechnet: '🔄',
 };
 
 function groupHistoryItems(items: HistoryItem[]): GroupedHistoryItem[] {
@@ -610,13 +610,14 @@ export default function SettleScreen() {
     );
   };
 
-  const confirmPaymentReceived = (entry: CreditEntry, nettoAmount: number, debtAmount: number) => {
+  const confirmPaymentReceived = (entry: CreditEntry, nettoAmount: number, myDebtAmount: number) => {
     const creditTotal = entry.splits.reduce((s, sp) => s + sp.amount, 0);
-    const message = debtAmount > 0
+    const message = myDebtAmount > 0
       ? `${entry.debtorName} schuldet dir: ${entry.currency} ${creditTotal.toFixed(2)}\n` +
-        `Du schuldest ${entry.debtorName}: ${entry.currency} ${debtAmount.toFixed(2)}\n` +
+        `Du schuldest ${entry.debtorName}: ${entry.currency} ${myDebtAmount.toFixed(2)}\n` +
         `─────────────────────────────\n` +
-        `Netto erhalten: ${entry.currency} ${nettoAmount.toFixed(2)}`
+        `Netto erhalten: ${entry.currency} ${nettoAmount.toFixed(2)}\n\n` +
+        `Deine Gegenschuld wird ebenfalls automatisch als beglichen markiert.`
       : `Hast du ${entry.currency} ${creditTotal.toFixed(2)} von ${entry.debtorName} erhalten?`;
 
     Alert.alert('Zahlung erhalten?', message, [
@@ -625,12 +626,34 @@ export default function SettleScreen() {
         text: 'Ja, erhalten ✓',
         onPress: async () => {
           try {
-            const { error } = await supabase
+            const now = new Date().toISOString();
+
+            const { error: creditError } = await supabase
               .from('expense_splits')
-              .update({ is_settled: true, settled_at: new Date().toISOString(), payment_method: 'Erhalten' })
+              .update({ is_settled: true, settled_at: now, payment_method: 'Erhalten' })
               .in('id', entry.splits.map(s => s.id));
-            if (error) throw error;
+            if (creditError) throw creditError;
+
+            if (myDebtAmount > 0) {
+              const myDebtSplitIds = debtsByPerson
+                .filter(d => d.payerId === entry.debtorId && d.currency === entry.currency)
+                .flatMap(d => d.splits.map(s => s.id));
+              if (myDebtSplitIds.length > 0) {
+                const { error: debtError } = await supabase
+                  .from('expense_splits')
+                  .update({ is_settled: true, settled_at: now, payment_method: 'Verrechnet' })
+                  .in('id', myDebtSplitIds);
+                if (debtError) throw debtError;
+              }
+            }
+
             haptics.success();
+            Alert.alert(
+              '✅ Erhalten',
+              myDebtAmount > 0
+                ? `${entry.currency} ${nettoAmount.toFixed(2)} erhalten.\nDeine Schuld von ${entry.currency} ${myDebtAmount.toFixed(2)} wurde automatisch verrechnet.`
+                : 'Zahlung als erhalten markiert.'
+            );
             await Promise.all([fetchDebts(), loadHistory()]);
           } catch (err: any) {
             Alert.alert('Fehler', err.message);
