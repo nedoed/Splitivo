@@ -59,6 +59,7 @@ export default function ActivityScreen() {
         groups!group_id(name)
       `)
       .in('group_id', groupIds)
+      .order('date', { ascending: false })
       .order('created_at', { ascending: false })
       .limit(100);
 
@@ -77,15 +78,18 @@ export default function ActivityScreen() {
     : expenses;
 
   const groupByDate = (list: Expense[]) => {
-    const map: { [key: string]: Expense[] } = {};
+    const map: { [key: string]: { label: string; items: Expense[]; isoDate: string } } = {};
     list.forEach((expense) => {
-      const date = new Date(expense.date).toLocaleDateString('de-DE', {
+      const isoDate = expense.date?.split('T')[0] ?? expense.created_at?.split('T')[0] ?? '';
+      const label = new Date(isoDate).toLocaleDateString('de-DE', {
         weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
       });
-      if (!map[date]) map[date] = [];
-      map[date].push(expense);
+      if (!map[isoDate]) map[isoDate] = { label, items: [], isoDate };
+      map[isoDate].items.push(expense);
     });
-    return Object.entries(map).map(([date, items]) => ({ date, items }));
+    return Object.entries(map)
+      .sort(([a], [b]) => new Date(b).getTime() - new Date(a).getTime())
+      .map(([, group]) => ({ date: group.label, items: group.items }));
   };
 
   const grouped = groupByDate(filteredExpenses);
