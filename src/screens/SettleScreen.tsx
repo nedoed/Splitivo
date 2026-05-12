@@ -71,7 +71,7 @@ interface HistoryItem {
 }
 
 const PAYMENT_METHOD_ICON: Record<string, string> = {
-  TWINT: '💙', WERO: '🟣', PayPal: '🔵', 'Banküberweisung': '🏦', Bar: '💵', Sonstiges: '✅',
+  TWINT: '💙', WERO: '🟣', PayPal: '🔵', 'Banküberweisung': '🏦', Bar: '💵', Sonstiges: '✅', Erhalten: '✅',
 };
 
 function getGroupNetto(group: GroupData): Record<string, { name: string; byCurrency: Record<string, number> }> {
@@ -119,6 +119,7 @@ export default function SettleScreen() {
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
   const [selectedPerson, setSelectedPerson] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(false);
+  const [totalExpanded, setTotalExpanded] = useState(true);
 
   const { theme } = useTheme();
   const styles = getStyles(theme);
@@ -153,14 +154,19 @@ export default function SettleScreen() {
       payerId: string; payerName: string; currency: string;
       splits: SplitItem[]; creditEntries: CreditEntry[];
     }> = {};
+    // Pass 1: collect all debts
     Object.values(groupedData).forEach(group => {
       group.debts.forEach(entry => {
         const key = `${entry.payerId}|${entry.currency}`;
         if (!map[key]) map[key] = { payerId: entry.payerId, payerName: entry.payerName, currency: entry.currency, splits: [], creditEntries: [] };
         map[key].splits.push(...entry.splits);
-        group.credits
-          .filter(c => c.debtorId === entry.payerId && c.currency === entry.currency)
-          .forEach(c => { map[key].creditEntries.push(c); });
+      });
+    });
+    // Pass 2: collect credits from ALL groups (not just same group)
+    Object.values(groupedData).forEach(group => {
+      group.credits.forEach(credit => {
+        const key = `${credit.debtorId}|${credit.currency}`;
+        if (map[key]) map[key].creditEntries.push(credit);
       });
     });
     return Object.values(map);
@@ -451,10 +457,14 @@ export default function SettleScreen() {
   const showSettleOptions = (entry: DebtEntry, creditEntries: CreditEntry[]) => {
     const currency = entry.currency;
     const debtTotal = entry.splits.reduce((s, sp) => s + sp.amount, 0);
-    const creditTotal = creditEntries
-      .filter(c => c.currency === currency && c.debtorId === entry.payerId)
+    const creditTotal = (creditEntries ?? [])
       .reduce((s, c) => s + c.splits.reduce((ss, sp) => ss + sp.amount, 0), 0);
     const nettoAmount = Math.max(0, debtTotal - creditTotal);
+
+    console.log('debtTotal:', debtTotal);
+    console.log('creditTotal:', creditTotal);
+    console.log('nettoAmount:', nettoAmount);
+    console.log('creditEntries:', JSON.stringify(creditEntries));
 
     const title = creditTotal > 0
       ? `Netto begleichen: ${currency} ${nettoAmount.toFixed(2)}`
@@ -522,6 +532,34 @@ export default function SettleScreen() {
     );
   };
 
+  const confirmPaymentReceived = (entry: CreditEntry) => {
+    const total = entry.splits.reduce((s, sp) => s + sp.amount, 0);
+    Alert.alert(
+      'Zahlung erhalten?',
+      `Hast du ${entry.currency} ${total.toFixed(2)} von ${entry.debtorName} erhalten?`,
+      [
+        { text: 'Nein', style: 'cancel' },
+        {
+          text: 'Ja, erhalten ✓',
+          onPress: async () => {
+            try {
+              const { error } = await supabase
+                .from('expense_splits')
+                .update({ is_settled: true, settled_at: new Date().toISOString(), payment_method: 'Erhalten' })
+                .in('id', entry.splits.map(s => s.id));
+              if (error) throw error;
+              haptics.success();
+              fetchDebts();
+              loadHistory();
+            } catch (err: any) {
+              Alert.alert('Fehler', err.message);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   // ── Render ───────────────────────────────────────────────────────────────────
   const hasMultiCurrency = Object.keys({ ...totalOweByCurrency, ...totalOwedByCurrency }).length > 1;
 
@@ -576,7 +614,7 @@ export default function SettleScreen() {
         ) : (
           <View style={{ flex: 1 }}>
             <ScrollView
-              contentContainerStyle={styles.list}
+              contentContainerStyle={[styles.list, { paddingBottom: totalExpanded ? 220 : 80 }]}
               refreshControl={
                 <RefreshControl
                   refreshing={refreshing}
@@ -712,6 +750,20 @@ export default function SettleScreen() {
                                 {entry.currency} {entry.splits.reduce((s, sp) => s + sp.amount, 0).toFixed(2)}
                               </Text>
                             </View>
+                            <TouchableOpacity
+                              onPress={() => confirmPaymentReceived(entry)}
+                              style={{
+                                flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+                                backgroundColor: '#4CAF5015', borderRadius: 10,
+                                padding: 10, marginTop: 8, gap: 6,
+                              }}
+                              activeOpacity={0.7}
+                            >
+                              <Ionicons name="checkmark-circle-outline" size={18} color="#4CAF50" />
+                              <Text style={{ color: '#4CAF50', fontWeight: '600', fontSize: 14 }}>
+                                Zahlung erhalten
+                              </Text>
+                            </TouchableOpacity>
                           </View>
                         ))}
 
@@ -757,84 +809,102 @@ export default function SettleScreen() {
               backgroundColor: theme.card,
               borderTopWidth: 2,
               borderTopColor: theme.primary,
-              paddingHorizontal: 20,
-              paddingVertical: 16,
               shadowColor: '#000',
               shadowOffset: { width: 0, height: -3 },
               shadowOpacity: 0.08,
               shadowRadius: 8,
               elevation: 10,
             }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12, gap: 8 }}>
-                <View style={{ width: 4, height: 20, backgroundColor: theme.primary, borderRadius: 2 }} />
-                <Text style={{ fontWeight: '800', fontSize: 16, color: theme.text }}>Gesamttotal</Text>
-              </View>
-
-              <View style={{
-                flexDirection: 'row',
-                justifyContent: 'space-between',
-                backgroundColor: theme.inputBg,
-                borderRadius: 12,
-                padding: 12,
-                marginBottom: 8,
-              }}>
-                <View>
-                  <Text style={{ fontSize: 11, color: theme.textSecondary, marginBottom: 2 }}>Du schuldest</Text>
-                  {Object.entries(totalOweByCurrency).map(([cur, amount]) => (
-                    <Text key={cur} style={{ fontWeight: '700', color: '#F44336', fontSize: 15 }}>
-                      {cur} {amount.toFixed(2)}
-                    </Text>
-                  ))}
-                  {Object.keys(totalOweByCurrency).length === 0 && (
-                    <Text style={{ color: '#4CAF50', fontWeight: '600' }}>–</Text>
-                  )}
+              <TouchableOpacity
+                onPress={() => setTotalExpanded(v => !v)}
+                style={{
+                  flexDirection: 'row',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  paddingHorizontal: 20,
+                  paddingVertical: 12,
+                }}
+                activeOpacity={0.7}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <View style={{ width: 4, height: 20, backgroundColor: theme.primary, borderRadius: 2 }} />
+                  <Text style={{ fontWeight: '800', fontSize: 16, color: theme.text }}>Gesamttotal</Text>
                 </View>
-                <View style={{ alignItems: 'flex-end' }}>
-                  <Text style={{ fontSize: 11, color: theme.textSecondary, marginBottom: 2 }}>Du bekommst</Text>
-                  {Object.entries(totalOwedByCurrency).map(([cur, amount]) => (
-                    <Text key={cur} style={{ fontWeight: '700', color: '#4CAF50', fontSize: 15 }}>
-                      {cur} {amount.toFixed(2)}
-                    </Text>
-                  ))}
-                  {Object.keys(totalOwedByCurrency).length === 0 && (
-                    <Text style={{ color: theme.textSecondary, fontWeight: '600' }}>–</Text>
-                  )}
-                </View>
-              </View>
+                <Ionicons
+                  name={totalExpanded ? 'chevron-down' : 'chevron-up'}
+                  size={20}
+                  color={theme.primary}
+                />
+              </TouchableOpacity>
 
-              <View style={{
-                backgroundColor: theme.primary + '15',
-                borderRadius: 12,
-                padding: 12,
-                flexDirection: 'row',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-              }}>
-                <Text style={{ fontWeight: '700', color: theme.primary, fontSize: 14 }}>Netto</Text>
-                <View style={{ alignItems: 'flex-end' }}>
-                  {[...new Set([...Object.keys(totalOweByCurrency), ...Object.keys(totalOwedByCurrency)])].map(currency => {
-                    const owe = totalOweByCurrency[currency] ?? 0;
-                    const owed = totalOwedByCurrency[currency] ?? 0;
+              {totalExpanded && (
+                <View style={{ paddingHorizontal: 20, paddingBottom: 16 }}>
+                  <View style={{
+                    flexDirection: 'row',
+                    justifyContent: 'space-between',
+                    backgroundColor: theme.inputBg,
+                    borderRadius: 12,
+                    padding: 12,
+                    marginBottom: 8,
+                  }}>
+                    <View>
+                      <Text style={{ fontSize: 11, color: theme.textSecondary, marginBottom: 2 }}>Du schuldest</Text>
+                      {Object.entries(totalOweByCurrency).map(([cur, amount]) => (
+                        <Text key={cur} style={{ fontWeight: '700', color: '#F44336', fontSize: 15 }}>
+                          {cur} {amount.toFixed(2)}
+                        </Text>
+                      ))}
+                      {Object.keys(totalOweByCurrency).length === 0 && (
+                        <Text style={{ color: '#4CAF50', fontWeight: '600' }}>–</Text>
+                      )}
+                    </View>
+                    <View style={{ alignItems: 'flex-end' }}>
+                      <Text style={{ fontSize: 11, color: theme.textSecondary, marginBottom: 2 }}>Du bekommst</Text>
+                      {Object.entries(totalOwedByCurrency).map(([cur, amount]) => (
+                        <Text key={cur} style={{ fontWeight: '700', color: '#4CAF50', fontSize: 15 }}>
+                          {cur} {amount.toFixed(2)}
+                        </Text>
+                      ))}
+                      {Object.keys(totalOwedByCurrency).length === 0 && (
+                        <Text style={{ color: theme.textSecondary, fontWeight: '600' }}>–</Text>
+                      )}
+                    </View>
+                  </View>
+
+                  {[...new Set([...Object.keys(totalOweByCurrency), ...Object.keys(totalOwedByCurrency)])].map(cur => {
+                    const owe = totalOweByCurrency[cur] ?? 0;
+                    const owed = totalOwedByCurrency[cur] ?? 0;
                     const netto = owed - owe;
                     return (
-                      <Text key={currency} style={{ fontWeight: '800', color: netto >= 0 ? '#4CAF50' : '#F44336', fontSize: 16 }}>
-                        {netto >= 0 ? '+' : ''}{currency} {Math.abs(netto).toFixed(2)}
-                      </Text>
+                      <View key={cur} style={{
+                        backgroundColor: theme.primary + '15',
+                        borderRadius: 12,
+                        padding: 12,
+                        flexDirection: 'row',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        marginBottom: 4,
+                      }}>
+                        <Text style={{ fontWeight: '700', color: theme.primary, fontSize: 14 }}>Netto {cur}</Text>
+                        <Text style={{ fontWeight: '800', color: netto >= 0 ? '#4CAF50' : '#F44336', fontSize: 16 }}>
+                          {netto >= 0 ? '+' : ''}{Math.abs(netto).toFixed(2)} {cur}
+                        </Text>
+                      </View>
                     );
                   })}
-                </View>
-              </View>
 
-              {exchangeRate !== null && hasMultiCurrency && (
-                <View style={styles.totalConverted}>
-                  <Text style={styles.totalConvertedText}>
-                    Total CHF (netto):{' '}
-                    {(
-                      ((totalOweByCurrency['CHF'] ?? 0) + (totalOweByCurrency['EUR'] ?? 0) * exchangeRate) -
-                      ((totalOwedByCurrency['CHF'] ?? 0) + (totalOwedByCurrency['EUR'] ?? 0) * exchangeRate)
-                    ).toFixed(2)} CHF
-                  </Text>
-                  <Text style={styles.totalConvertedSub}>(1 EUR = {exchangeRate} CHF)</Text>
+                  {exchangeRate !== null && hasMultiCurrency && (
+                    <View style={styles.totalConverted}>
+                      <Text style={styles.totalConvertedText}>
+                        Total CHF (netto):{' '}
+                        {(
+                          ((totalOweByCurrency['CHF'] ?? 0) + (totalOweByCurrency['EUR'] ?? 0) * exchangeRate) -
+                          ((totalOwedByCurrency['CHF'] ?? 0) + (totalOwedByCurrency['EUR'] ?? 0) * exchangeRate)
+                        ).toFixed(2)} CHF
+                      </Text>
+                      <Text style={styles.totalConvertedSub}>(1 EUR = {exchangeRate} CHF)</Text>
+                    </View>
+                  )}
                 </View>
               )}
             </View>
