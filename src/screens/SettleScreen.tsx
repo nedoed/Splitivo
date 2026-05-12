@@ -448,89 +448,66 @@ export default function SettleScreen() {
     }, 400);
   };
 
-  const showSettleOptions = (entry: DebtEntry, groupCredits: CreditEntry[]) => {
+  const showSettleOptions = (entry: DebtEntry, creditEntries: CreditEntry[]) => {
     const currency = entry.currency;
     const debtTotal = entry.splits.reduce((s, sp) => s + sp.amount, 0);
-
-    // Only credits from the same person we owe (not group-wide)
-    const creditTotal = groupCredits
+    const creditTotal = creditEntries
       .filter(c => c.currency === currency && c.debtorId === entry.payerId)
       .reduce((s, c) => s + c.splits.reduce((ss, sp) => ss + sp.amount, 0), 0);
+    const nettoAmount = Math.max(0, debtTotal - creditTotal);
 
-    const nettoAmount = debtTotal - creditTotal;
+    const title = creditTotal > 0
+      ? `Netto begleichen: ${currency} ${nettoAmount.toFixed(2)}`
+      : 'Begleichen';
 
-    if (creditTotal > 0 && nettoAmount > 0) {
-      Alert.alert(
-        'Betrag wählen',
-        `Du schuldest ${entry.payerName}: ${currency} ${debtTotal.toFixed(2)}\n` +
+    const message = creditTotal > 0
+      ? `Du schuldest ${entry.payerName}: ${currency} ${debtTotal.toFixed(2)}\n` +
         `${entry.payerName} schuldet dir: ${currency} ${creditTotal.toFixed(2)}\n` +
-        `─────────────────────────\n` +
-        `Netto zu zahlen: ${currency} ${nettoAmount.toFixed(2)}`,
-        [
-          { text: 'Abbrechen', style: 'cancel' },
-          {
-            text: `Netto: ${currency} ${nettoAmount.toFixed(2)}`,
-            onPress: () => settleDebtEntry(entry, () => {
-              setTimeout(() => {
-                Alert.alert(
-                  '✅ Beglichen',
-                  `Netto-Betrag wurde als beglichen markiert.\n\n` +
-                  `Deine offenen Forderungen bleiben bestehen bis ${entry.payerName} sie begleicht.`
-                );
-              }, 300);
-            }),
-          },
-          {
-            text: `Voll: ${currency} ${debtTotal.toFixed(2)}`,
-            onPress: () => settleDebtEntry(entry),
-          },
-        ]
-      );
-    } else {
-      settleDebtEntry(entry);
-    }
-  };
+        `─────────────────────────────────\n` +
+        `Netto zu zahlen: ${currency} ${nettoAmount.toFixed(2)}`
+      : `${currency} ${debtTotal.toFixed(2)} an ${entry.payerName} — Wie bezahlen?`;
 
-  const settleDebtEntry = (entry: DebtEntry, onAfterSettle?: () => void) => {
-    const total = entry.splits.reduce((s, sp) => s + sp.amount, 0);
+    const onAfterSettle = creditTotal > 0 ? () => {
+      setTimeout(() => Alert.alert(
+        '✅ Beglichen',
+        `Netto-Betrag wurde als beglichen markiert.\n\nDeine offenen Forderungen bleiben bestehen bis ${entry.payerName} sie begleicht.`
+      ), 300);
+    } : undefined;
+
     haptics.warning();
-    Alert.alert(
-      'Alle begleichen',
-      `${entry.currency} ${total.toFixed(2)} an ${entry.payerName} — Wie bezahlen?`,
-      [
-        { text: 'Abbrechen', style: 'cancel' },
-        {
-          text: '💙 TWINT',
-          onPress: async () => {
-            const opened = await payWithTwint();
-            if (opened) askSettled(entry, 'TWINT', onAfterSettle);
-          },
+    Alert.alert(title, message, [
+      { text: 'Abbrechen', style: 'cancel' },
+      {
+        text: '💙 TWINT',
+        onPress: async () => {
+          const opened = await payWithTwint();
+          if (opened) askSettled(entry, 'TWINT', onAfterSettle);
         },
-        {
-          text: '🟣 WERO',
-          onPress: async () => {
-            const opened = await payWithWero();
-            if (opened) askSettled(entry, 'WERO', onAfterSettle);
-          },
+      },
+      {
+        text: '🟣 WERO',
+        onPress: async () => {
+          const opened = await payWithWero();
+          if (opened) askSettled(entry, 'WERO', onAfterSettle);
         },
-        {
-          text: '🔵 PayPal',
-          onPress: async () => {
-            const opened = await payWithPayPal(entry.payerId);
-            if (opened) askSettled(entry, 'PayPal', onAfterSettle);
-          },
+      },
+      {
+        text: '🔵 PayPal',
+        onPress: async () => {
+          const opened = await payWithPayPal(entry.payerId);
+          if (opened) askSettled(entry, 'PayPal', onAfterSettle);
         },
-        {
-          text: '🏦 Banküberweisung',
-          onPress: async () => {
-            const shown = await showBankDetails(entry.payerId);
-            if (shown) askSettled(entry, 'Banküberweisung', onAfterSettle);
-          },
+      },
+      {
+        text: '🏦 Banküberweisung',
+        onPress: async () => {
+          const shown = await showBankDetails(entry.payerId);
+          if (shown) askSettled(entry, 'Banküberweisung', onAfterSettle);
         },
-        { text: '💵 Bar',       onPress: () => markSplitsSettled(entry.splits, 'Bar', entry.payerId, onAfterSettle) },
-        { text: '✅ Sonstiges', onPress: () => markSplitsSettled(entry.splits, 'Sonstiges', entry.payerId, onAfterSettle) },
-      ]
-    );
+      },
+      { text: '💵 Bar',       onPress: () => markSplitsSettled(entry.splits, 'Bar', entry.payerId, onAfterSettle) },
+      { text: '✅ Sonstiges', onPress: () => markSplitsSettled(entry.splits, 'Sonstiges', entry.payerId, onAfterSettle) },
+    ]);
   };
 
   const handleSettlePress = (entry: DebtEntry, creditEntries: CreditEntry[]) => {
@@ -776,48 +753,76 @@ export default function SettleScreen() {
             </ScrollView>
 
             {/* Gesamttotal */}
-            <View style={styles.totalFooter}>
-              <Text style={styles.totalFooterTitle}>Gesamttotal</Text>
-              <View style={styles.totalFooterCols}>
-                <View style={{ flex: 1 }}>
+            <View style={{
+              backgroundColor: theme.card,
+              borderTopWidth: 2,
+              borderTopColor: theme.primary,
+              paddingHorizontal: 20,
+              paddingVertical: 16,
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: -3 },
+              shadowOpacity: 0.08,
+              shadowRadius: 8,
+              elevation: 10,
+            }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12, gap: 8 }}>
+                <View style={{ width: 4, height: 20, backgroundColor: theme.primary, borderRadius: 2 }} />
+                <Text style={{ fontWeight: '800', fontSize: 16, color: theme.text }}>Gesamttotal</Text>
+              </View>
+
+              <View style={{
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                backgroundColor: theme.inputBg,
+                borderRadius: 12,
+                padding: 12,
+                marginBottom: 8,
+              }}>
+                <View>
+                  <Text style={{ fontSize: 11, color: theme.textSecondary, marginBottom: 2 }}>Du schuldest</Text>
                   {Object.entries(totalOweByCurrency).map(([cur, amount]) => (
-                    <Text key={cur} style={styles.totalRed}>
-                      Du schuldest: {cur} {amount.toFixed(2)}
+                    <Text key={cur} style={{ fontWeight: '700', color: '#F44336', fontSize: 15 }}>
+                      {cur} {amount.toFixed(2)}
                     </Text>
                   ))}
                   {Object.keys(totalOweByCurrency).length === 0 && (
-                    <Text style={styles.totalNeutral}>Du schuldest: –</Text>
+                    <Text style={{ color: '#4CAF50', fontWeight: '600' }}>–</Text>
                   )}
                 </View>
-                <View style={{ flex: 1, alignItems: 'flex-end' }}>
+                <View style={{ alignItems: 'flex-end' }}>
+                  <Text style={{ fontSize: 11, color: theme.textSecondary, marginBottom: 2 }}>Du bekommst</Text>
                   {Object.entries(totalOwedByCurrency).map(([cur, amount]) => (
-                    <Text key={cur} style={styles.totalGreen}>
-                      Du bekommst: {cur} {amount.toFixed(2)}
+                    <Text key={cur} style={{ fontWeight: '700', color: '#4CAF50', fontSize: 15 }}>
+                      {cur} {amount.toFixed(2)}
                     </Text>
                   ))}
                   {Object.keys(totalOwedByCurrency).length === 0 && (
-                    <Text style={styles.totalNeutral}>Du bekommst: –</Text>
+                    <Text style={{ color: theme.textSecondary, fontWeight: '600' }}>–</Text>
                   )}
                 </View>
               </View>
-              {/* Netto Gesamttotal */}
-              <View style={styles.footerNetto}>
-                <Text style={styles.footerNettoTitle}>Netto</Text>
-                {[...new Set([...Object.keys(totalOweByCurrency), ...Object.keys(totalOwedByCurrency)])].map(currency => {
-                  const owe = totalOweByCurrency[currency] ?? 0;
-                  const owed = totalOwedByCurrency[currency] ?? 0;
-                  const netto = owed - owe;
-                  return (
-                    <View key={currency} style={styles.footerNettoRow}>
-                      <Text style={[styles.footerNettoLabel, { color: netto >= 0 ? '#4CAF50' : '#F44336' }]}>
-                        {currency}
+
+              <View style={{
+                backgroundColor: theme.primary + '15',
+                borderRadius: 12,
+                padding: 12,
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+              }}>
+                <Text style={{ fontWeight: '700', color: theme.primary, fontSize: 14 }}>Netto</Text>
+                <View style={{ alignItems: 'flex-end' }}>
+                  {[...new Set([...Object.keys(totalOweByCurrency), ...Object.keys(totalOwedByCurrency)])].map(currency => {
+                    const owe = totalOweByCurrency[currency] ?? 0;
+                    const owed = totalOwedByCurrency[currency] ?? 0;
+                    const netto = owed - owe;
+                    return (
+                      <Text key={currency} style={{ fontWeight: '800', color: netto >= 0 ? '#4CAF50' : '#F44336', fontSize: 16 }}>
+                        {netto >= 0 ? '+' : ''}{currency} {Math.abs(netto).toFixed(2)}
                       </Text>
-                      <Text style={[styles.footerNettoValue, { color: netto >= 0 ? '#4CAF50' : '#F44336' }]}>
-                        {currency} {netto >= 0 ? '+' : ''}{netto.toFixed(2)}
-                      </Text>
-                    </View>
-                  );
-                })}
+                    );
+                  })}
+                </View>
               </View>
 
               {exchangeRate !== null && hasMultiCurrency && (
