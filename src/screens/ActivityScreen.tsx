@@ -209,7 +209,7 @@ function getStyles(theme: Theme) {
     header: { padding: 20, paddingTop: 10, paddingBottom: 4 },
     title: { fontSize: 24, fontWeight: '700', color: theme.text },
     center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-    list: { padding: 16, paddingTop: 0 },
+    list: { padding: 16, paddingTop: 0, flexGrow: 1, justifyContent: 'flex-start', paddingBottom: 20 },
 
     pillsScroll: { marginBottom: 4 },
     pillsContent: { paddingHorizontal: 16, gap: 8 },
