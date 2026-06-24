@@ -56,14 +56,6 @@
       "expo-image-picker",
       "expo-file-system",
       [
-        "expo-media-library",
-        {
-          "photosPermission": "Benötigt um Spesen-Exporte zu speichern.",
-          "savePhotosPermission": "Benötigt um Spesen-Exporte zu speichern.",
-          "isAccessMediaLocationEnabled": false
-        }
-      ],
-      [
         "expo-notifications",
         {
           "icon": "./assets/icon.png",
