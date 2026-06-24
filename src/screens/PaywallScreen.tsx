@@ -11,8 +11,7 @@ import { Theme } from '../lib/theme'
 // Apple verlangt auf Auto-Renew-Paywalls Links zu Nutzungsbedingungen
 // (EULA) und Datenschutz. Apple-Standard-EULA ist als Terms zulässig.
 const TERMS_URL = 'https://www.apple.com/legal/internet-services/itunes/dev/stdeula/'
-// TODO: echte gehostete Datenschutz-URL eintragen (gleiche wie in App Store Connect).
-const PRIVACY_URL = 'https://splitivo.app/datenschutz'
+const PRIVACY_URL = 'https://nedoed.github.io/privacy-policy/'
 
 export default function PaywallScreen({ navigation }: any) {
   const { theme } = useTheme()
