@@ -99,7 +99,6 @@ export default function PaywallScreen({ navigation }: any) {
             { icon: '👥', text: 'Unbegrenzte Gruppen & Mitglieder' },
             { icon: '📊', text: 'Erweiterte Statistiken & Charts' },
             { icon: '🔔', text: 'Schulden-Erinnerungen' },
-            { icon: '📤', text: 'CSV & PDF Export' },
             { icon: '🌍', text: 'Alle Währungen' },
           ].map((f, i) => (
             <View key={i} style={styles.featureRow}>
