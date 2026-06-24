@@ -55,6 +55,13 @@ export const joinGroupWithCode = async (rawCode: string): Promise<JoinResult> =>
     .insert({ group_id: invite.group_id, user_id: userData.user.id });
 
   if (joinError) {
+    if (joinError.message?.includes('FREE_MEMBER_LIMIT')) {
+      return {
+        success: false,
+        error: 'Diese Gruppe ist voll (5 Mitglieder im Free-Plan). '
+          + 'Der Gruppen-Ersteller benötigt Splitivo Pro für mehr Mitglieder.',
+      };
+    }
     return { success: false, error: joinError.message };
   }
 

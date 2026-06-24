@@ -12,6 +12,7 @@ import GroupDetailScreen from '../screens/GroupDetailScreen';
 import AddExpenseScreen from '../screens/AddExpenseScreen';
 import ExpenseDetailScreen from '../screens/ExpenseDetailScreen';
 import ReceiptSplitScreen from '../screens/ReceiptSplitScreen';
+import PaywallScreen from '../screens/PaywallScreen';
 import ActivityScreen from '../screens/ActivityScreen';
 import SettleScreen from '../screens/SettleScreen';
 import ProfileScreen from '../screens/ProfileScreen';
@@ -42,6 +43,7 @@ function ProfileStack() {
     <Stack.Navigator screenOptions={headerOptions}>
       <Stack.Screen name="ProfileMain" component={ProfileScreen} options={{ headerShown: false }} />
       <Stack.Screen name="Friends" component={FriendsScreen} options={{ title: 'Freunde' }} />
+      <Stack.Screen name="Paywall" component={PaywallScreen} options={{ headerShown: false }} />
     </Stack.Navigator>
   );
 }
@@ -65,6 +67,7 @@ function GroupsStack() {
       <Stack.Screen name="AddExpense" component={AddExpenseScreen} options={{ title: 'Ausgabe hinzufügen' }} />
       <Stack.Screen name="ExpenseDetail" component={ExpenseDetailScreen} options={{ title: 'Ausgabe' }} />
       <Stack.Screen name="ReceiptSplit" component={ReceiptSplitScreen} options={{ title: 'Kassenbon aufteilen' }} />
+      <Stack.Screen name="Paywall" component={PaywallScreen} options={{ headerShown: false }} />
     </Stack.Navigator>
   );
 }

@@ -18,6 +18,7 @@ import { joinGroupWithCode } from './src/lib/invites';
 import { haptics } from './src/lib/haptics';
 import { checkAndScheduleReminders } from './src/lib/reminders';
 import { ThemeProvider, useTheme } from './src/lib/ThemeContext';
+import { ProProvider } from './src/lib/ProContext';
 
 // Nativen Splash-Screen eingefroren halten bis wir bereit sind
 SplashScreen.preventAutoHideAsync();
@@ -144,6 +145,7 @@ export default function App() {
 
   return (
     <ThemeProvider>
+    <ProProvider>
     <SafeAreaProvider>
       <View style={{ flex: 1 }}>
         <NavigationContainer>
@@ -223,6 +225,7 @@ export default function App() {
       )}
       </View>
     </SafeAreaProvider>
+    </ProProvider>
     </ThemeProvider>
   );
 }

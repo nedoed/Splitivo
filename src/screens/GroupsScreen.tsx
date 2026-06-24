@@ -28,6 +28,9 @@ import EmptyState from '../components/EmptyState';
 import { joinGroupWithCode } from '../lib/invites';
 import { useTheme } from '../lib/ThemeContext';
 import { Theme } from '../lib/theme';
+import { usePro } from '../hooks/usePro';
+
+const FREE_GROUP_LIMIT = 3;
 
 // ─── Swipeable Card ────────────────────────────────────────────────────────────
 
@@ -188,7 +191,17 @@ export default function GroupsScreen({ navigation }: any) {
   const [joining, setJoining] = useState(false);
 
   const { theme } = useTheme();
+  const { isPro } = usePro();
   const styles = getStyles(theme);
+
+  const openCreateGroup = () => {
+    if (!isPro && groups.length >= FREE_GROUP_LIMIT) {
+      haptics.warning();
+      navigation.navigate('Paywall');
+      return;
+    }
+    setModalVisible(true);
+  };
 
   const fetchGroups = async () => {
     const { data: sessionData } = await supabase.auth.getSession();
@@ -248,6 +261,12 @@ export default function GroupsScreen({ navigation }: any) {
   useFocusEffect(useCallback(() => { fetchGroups(); }, []));
 
   const createGroup = async () => {
+    if (!isPro && groups.length >= FREE_GROUP_LIMIT) {
+      setModalVisible(false);
+      haptics.warning();
+      navigation.navigate('Paywall');
+      return;
+    }
     setCreating(true);
     try {
       const { data: { user }, error: userError } = await supabase.auth.getUser();
@@ -259,7 +278,15 @@ export default function GroupsScreen({ navigation }: any) {
         .select()
         .single();
 
-      if (groupError) { Alert.alert('Fehler', groupError.message); return; }
+      if (groupError) {
+        if (groupError.message?.includes('FREE_GROUP_LIMIT')) {
+          setModalVisible(false);
+          haptics.warning();
+          navigation.navigate('Paywall');
+          return;
+        }
+        Alert.alert('Fehler', groupError.message); return;
+      }
 
       const { error: memberError } = await supabase
         .from('group_members')
@@ -350,7 +377,7 @@ export default function GroupsScreen({ navigation }: any) {
           >
             <Text style={styles.codeBtnText}>🔗 Code</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.addBtn} onPress={() => setModalVisible(true)}>
+          <TouchableOpacity style={styles.addBtn} onPress={openCreateGroup}>
             <Text style={styles.addBtnText}>+ Neu</Text>
           </TouchableOpacity>
         </View>

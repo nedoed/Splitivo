@@ -15,6 +15,7 @@ import { cancelAllReminders, checkAndScheduleReminders } from '../lib/reminders'
 import { Profile } from '../types';
 import { useTheme } from '../lib/ThemeContext';
 import { Theme } from '../lib/theme';
+import { usePro } from '../hooks/usePro';
 
 const REMINDER_DAY_OPTIONS = [3, 7, 14];
 
@@ -45,6 +46,7 @@ export default function ProfileScreen({ navigation }: any) {
   const [deletingAccount, setDeletingAccount] = useState(false);
 
   const { theme, isDark, toggleTheme } = useTheme();
+  const { isPro } = usePro();
   const styles = getStyles(theme);
 
   const fetchProfile = async () => {
@@ -102,25 +104,37 @@ export default function ProfileScreen({ navigation }: any) {
     }
   };
 
+  // Schulden-Erinnerungen sind ein Pro-Feature
+  const requirePro = () => {
+    if (isPro) return true;
+    haptics.warning();
+    navigation.navigate('Paywall');
+    return false;
+  };
+
   const toggleReminderEnabled = (value: boolean) => {
+    if (!requirePro()) return;
     haptics.selection();
     setReminderEnabled(value);
     saveReminderField({ reminder_enabled: value });
   };
 
   const toggleDailySummary = (value: boolean) => {
+    if (!requirePro()) return;
     haptics.selection();
     setReminderDailySummary(value);
     saveReminderField({ reminder_daily_summary: value });
   };
 
   const selectReminderDays = (days: number) => {
+    if (!requirePro()) return;
     haptics.light();
     setReminderDays(days);
     saveReminderField({ reminder_days: days });
   };
 
   const openTimePicker = () => {
+    if (!requirePro()) return;
     const [h, m] = reminderTime.split(':').map(Number);
     setPickerHour(h);
     setPickerMinute(m);
@@ -439,6 +453,26 @@ export default function ProfileScreen({ navigation }: any) {
         </View>
       </View>
 
+      {/* Pro-Upgrade-Banner */}
+      {!isPro && (
+        <TouchableOpacity
+          style={styles.proBanner}
+          onPress={() => { haptics.light(); navigation.navigate('Paywall'); }}
+          activeOpacity={0.85}
+        >
+          <View style={styles.proBannerIcon}>
+            <Text style={styles.proBannerIconText}>⭐️</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.proBannerTitle}>Splitivo Pro</Text>
+            <Text style={styles.proBannerSub}>Alle Features freischalten</Text>
+          </View>
+          <View style={styles.proBannerCta}>
+            <Text style={styles.proBannerCtaText}>Upgraden</Text>
+          </View>
+        </TouchableOpacity>
+      )}
+
       {/* Konto-Sektion */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Konto</Text>
@@ -500,15 +534,18 @@ export default function ProfileScreen({ navigation }: any) {
         </TouchableOpacity>
       </View>
 
-      {/* Erinnerungen-Sektion */}
+      {/* Erinnerungen-Sektion (Pro) */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Erinnerungen</Text>
+        <View style={styles.sectionTitleRow}>
+          <Text style={styles.sectionTitle}>Erinnerungen</Text>
+          {!isPro && <Text style={styles.proTag}>PRO</Text>}
+        </View>
 
         <View style={styles.menuItem}>
           <Text style={styles.menuIcon}>🔔</Text>
           <Text style={styles.menuLabel}>Erinnerungen aktiv</Text>
           <Switch
-            value={reminderEnabled}
+            value={isPro && reminderEnabled}
             onValueChange={toggleReminderEnabled}
             trackColor={{ false: theme.border, true: theme.primary }}
             thumbColor="#FFFFFF"
@@ -768,8 +805,34 @@ function getStyles(theme: Theme) {
     },
     statValue: { fontSize: 22, fontWeight: '700', color: theme.primary, marginBottom: 4 },
     statLabel: { fontSize: 12, color: theme.textSecondary },
+    proBanner: {
+      flexDirection: 'row', alignItems: 'center', backgroundColor: theme.primary,
+      borderRadius: 16, padding: 16, marginBottom: 24,
+      shadowColor: theme.primary, shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.25, shadowRadius: 12, elevation: 4,
+    },
+    proBannerIcon: {
+      width: 44, height: 44, borderRadius: 22, marginRight: 14,
+      backgroundColor: 'rgba(255,255,255,0.2)',
+      justifyContent: 'center', alignItems: 'center',
+    },
+    proBannerIconText: { fontSize: 22 },
+    proBannerTitle: { fontSize: 16, fontWeight: '700', color: '#fff' },
+    proBannerSub: { fontSize: 13, color: 'rgba(255,255,255,0.85)', marginTop: 2 },
+    proBannerCta: {
+      backgroundColor: '#fff', borderRadius: 99,
+      paddingHorizontal: 16, paddingVertical: 8,
+    },
+    proBannerCtaText: { color: theme.primary, fontWeight: '700', fontSize: 13 },
+
     section: { marginBottom: 20 },
     sectionTitle: { fontSize: 13, fontWeight: '600', color: theme.textSecondary, marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.5 },
+    sectionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    proTag: {
+      backgroundColor: theme.primary, color: '#fff', fontSize: 10, fontWeight: '700',
+      paddingHorizontal: 8, paddingVertical: 2, borderRadius: 99, overflow: 'hidden',
+      marginBottom: 12,
+    },
     menuItem: {
       flexDirection: 'row', alignItems: 'center', backgroundColor: theme.card,
       borderRadius: 12, padding: 16, marginBottom: 8,
