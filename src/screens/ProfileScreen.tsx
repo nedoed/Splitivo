@@ -15,6 +15,7 @@ import { cancelAllReminders, checkAndScheduleReminders } from '../lib/reminders'
 import { Profile } from '../types';
 import { useTheme } from '../lib/ThemeContext';
 import { Theme } from '../lib/theme';
+import { usePro } from '../hooks/usePro';
 
 const REMINDER_DAY_OPTIONS = [3, 7, 14];
 
@@ -45,6 +46,7 @@ export default function ProfileScreen({ navigation }: any) {
   const [deletingAccount, setDeletingAccount] = useState(false);
 
   const { theme, isDark, toggleTheme } = useTheme();
+  const { isPro } = usePro();
   const styles = getStyles(theme);
 
   const fetchProfile = async () => {
@@ -439,6 +441,26 @@ export default function ProfileScreen({ navigation }: any) {
         </View>
       </View>
 
+      {/* Pro-Upgrade-Banner */}
+      {!isPro && (
+        <TouchableOpacity
+          style={styles.proBanner}
+          onPress={() => { haptics.light(); navigation.navigate('Paywall'); }}
+          activeOpacity={0.85}
+        >
+          <View style={styles.proBannerIcon}>
+            <Text style={styles.proBannerIconText}>⭐️</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.proBannerTitle}>Splitivo Pro</Text>
+            <Text style={styles.proBannerSub}>Alle Features freischalten</Text>
+          </View>
+          <View style={styles.proBannerCta}>
+            <Text style={styles.proBannerCtaText}>Upgraden</Text>
+          </View>
+        </TouchableOpacity>
+      )}
+
       {/* Konto-Sektion */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Konto</Text>
@@ -768,6 +790,26 @@ function getStyles(theme: Theme) {
     },
     statValue: { fontSize: 22, fontWeight: '700', color: theme.primary, marginBottom: 4 },
     statLabel: { fontSize: 12, color: theme.textSecondary },
+    proBanner: {
+      flexDirection: 'row', alignItems: 'center', backgroundColor: theme.primary,
+      borderRadius: 16, padding: 16, marginBottom: 24,
+      shadowColor: theme.primary, shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.25, shadowRadius: 12, elevation: 4,
+    },
+    proBannerIcon: {
+      width: 44, height: 44, borderRadius: 22, marginRight: 14,
+      backgroundColor: 'rgba(255,255,255,0.2)',
+      justifyContent: 'center', alignItems: 'center',
+    },
+    proBannerIconText: { fontSize: 22 },
+    proBannerTitle: { fontSize: 16, fontWeight: '700', color: '#fff' },
+    proBannerSub: { fontSize: 13, color: 'rgba(255,255,255,0.85)', marginTop: 2 },
+    proBannerCta: {
+      backgroundColor: '#fff', borderRadius: 99,
+      paddingHorizontal: 16, paddingVertical: 8,
+    },
+    proBannerCtaText: { color: theme.primary, fontWeight: '700', fontSize: 13 },
+
     section: { marginBottom: 20 },
     sectionTitle: { fontSize: 13, fontWeight: '600', color: theme.textSecondary, marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.5 },
     menuItem: {

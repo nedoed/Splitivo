@@ -7,6 +7,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
+import { ProGate } from '../components/ProGate';
+import { usePro } from '../hooks/usePro';
 
 // base64 → Uint8Array (kein Buffer-Polyfill nötig)
 function decode(base64: string): Uint8Array {
@@ -48,7 +50,7 @@ export default function AddExpenseScreen({ route, navigation }: any) {
   const [loading, setLoading] = useState(false);
   const [scanLoading, setScanLoading] = useState(false);
   const [receiptImage, setReceiptImage] = useState<string | null>(null);
-
+  const { isPro } = usePro()
   const { theme } = useTheme();
   const styles = getStyles(theme);
 
@@ -307,20 +309,26 @@ Erkenne alle einzelnen Positionen auf dem Kassenbon.`,
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
       >
-        <TouchableOpacity style={styles.scanBtn} onPress={scanReceipt} disabled={scanLoading}>
-          {scanLoading ? (
-            <ActivityIndicator color={theme.primary} />
-          ) : (
-            <>
-              <Text style={styles.scanIcon}>📷</Text>
-              <Text style={styles.scanText}>Kassenbon scannen</Text>
-            </>
-          )}
-        </TouchableOpacity>
-
-        {receiptImage && (
-          <Image source={{ uri: receiptImage }} style={styles.receiptPreview} resizeMode="cover" />
-        )}
+        {isPro ? (
+  <TouchableOpacity style={styles.scanBtn} onPress={scanReceipt} disabled={scanLoading}>
+    {scanLoading ? (
+      <ActivityIndicator color={theme.primary} />
+    ) : (
+      <>
+        <Text style={styles.scanIcon}>📷</Text>
+        <Text style={styles.scanText}>Kassenbon scannen</Text>
+      </>
+    )}
+  </TouchableOpacity>
+) : (
+  <TouchableOpacity
+    style={[styles.scanBtn, styles.scanBtnLocked]}
+    onPress={() => navigation.navigate('Paywall')}
+  >
+    <Text style={styles.scanIcon}>🔒</Text>
+    <Text style={styles.scanText}>Kassenbon scannen — Pro Feature</Text>
+  </TouchableOpacity>
+)}
 
         <Text style={styles.label}>Betrag</Text>
         <View style={styles.amountRow}>
@@ -509,6 +517,11 @@ function getStyles(theme: Theme) {
     },
     scanIcon: { fontSize: 22, marginRight: 8 },
     scanText: { fontSize: 14, fontWeight: '600', color: theme.primary },
+    scanBtnLocked: {
+      backgroundColor: theme.card,
+      borderColor: theme.border,
+      opacity: 0.7,
+    },
     receiptPreview: { width: '100%', height: 140, borderRadius: 12, marginBottom: 16 },
 
     label: { fontSize: 13, fontWeight: '600', color: theme.textSecondary, marginBottom: 8 },

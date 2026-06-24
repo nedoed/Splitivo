@@ -211,7 +211,7 @@ function getStyles(theme: Theme) {
     center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
     list: { padding: 16, paddingTop: 0, flexGrow: 1, justifyContent: 'flex-start', paddingBottom: 20 },
 
-    pillsScroll: { marginBottom: 4 },
+    pillsScroll: { flexGrow: 0, flexShrink: 0, marginBottom: 4 },
     pillsContent: { paddingHorizontal: 16, gap: 8 },
     pill: {
       height: 36, paddingHorizontal: 16,
