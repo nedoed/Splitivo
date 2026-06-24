@@ -1,30 +1,59 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import {
   View, Text, TouchableOpacity, StyleSheet,
   ActivityIndicator, Alert, ScrollView
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import Purchases from 'react-native-purchases'
+import Purchases, { PurchasesOffering, PurchasesPackage } from 'react-native-purchases'
 import { useTheme } from '../lib/ThemeContext'
 import { Theme } from '../lib/theme'
 
 export default function PaywallScreen({ navigation }: any) {
   const { theme } = useTheme()
   const styles = getStyles(theme)
-  const [loading, setLoading] = useState(false)
+  const [offering, setOffering] = useState<PurchasesOffering | null>(null)
+  const [loadingOffering, setLoadingOffering] = useState(true)
+  const [purchasing, setPurchasing] = useState(false)
 
-  const handlePurchase = async (productId: string) => {
-    setLoading(true)
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const offerings = await Purchases.getOfferings()
+        setOffering(offerings.current ?? null)
+      } catch (e: any) {
+        console.warn('getOfferings failed:', e)
+      } finally {
+        setLoadingOffering(false)
+      }
+    }
+    load()
+  }, [])
+
+  // Pakete aus dem aktuellen Offering ziehen (keine hardcoded Produkt-IDs).
+  const annual: PurchasesPackage | null =
+    offering?.annual ??
+    offering?.availablePackages.find(p => p.packageType === 'ANNUAL') ??
+    null
+  const monthly: PurchasesPackage | null =
+    offering?.monthly ??
+    offering?.availablePackages.find(p => p.packageType === 'MONTHLY') ??
+    null
+
+  // Ersparnis Jahr vs. 12× Monat, falls beide vorhanden.
+  let savingPct: number | null = null
+  let perMonthFromAnnual: string | null = null
+  if (annual && monthly && monthly.product.price > 0) {
+    const yearlyAtMonthly = monthly.product.price * 12
+    if (yearlyAtMonthly > 0) {
+      savingPct = Math.round((1 - annual.product.price / yearlyAtMonthly) * 100)
+    }
+    const perMonth = annual.product.price / 12
+    perMonthFromAnnual = `${annual.product.currencyCode} ${perMonth.toFixed(2)}`
+  }
+
+  const purchase = async (pkg: PurchasesPackage) => {
+    setPurchasing(true)
     try {
-      const offerings = await Purchases.getOfferings()
-      const current = offerings.current
-      if (!current) throw new Error('Keine Angebote gefunden')
-
-      const pkg = current.availablePackages.find(
-        p => p.product.identifier === productId
-      )
-      if (!pkg) throw new Error('Produkt nicht gefunden')
-
       await Purchases.purchasePackage(pkg)
       Alert.alert('Willkommen bei Pro! 🎉', 'Du hast jetzt Zugriff auf alle Pro-Features.')
       navigation.goBack()
@@ -33,12 +62,12 @@ export default function PaywallScreen({ navigation }: any) {
         Alert.alert('Fehler', e.message ?? 'Kauf fehlgeschlagen')
       }
     } finally {
-      setLoading(false)
+      setPurchasing(false)
     }
   }
 
   const handleRestore = async () => {
-    setLoading(true)
+    setPurchasing(true)
     try {
       await Purchases.restorePurchases()
       Alert.alert('Wiederhergestellt', 'Deine Käufe wurden wiederhergestellt.')
@@ -46,9 +75,11 @@ export default function PaywallScreen({ navigation }: any) {
     } catch (e: any) {
       Alert.alert('Fehler', e.message)
     } finally {
-      setLoading(false)
+      setPurchasing(false)
     }
   }
+
+  const noProducts = !loadingOffering && !annual && !monthly
 
   return (
     <SafeAreaView style={styles.container}>
@@ -75,32 +106,55 @@ export default function PaywallScreen({ navigation }: any) {
           ))}
         </View>
 
-        <TouchableOpacity
-          style={styles.btnPrimary}
-          onPress={() => handlePurchase('splitivo_pro_annual')}
-          disabled={loading}
-        >
-          {loading ? <ActivityIndicator color="#fff" /> : (
-            <>
-              <Text style={styles.btnPrimaryText}>Jährlich — CHF 14.99</Text>
-              <Text style={styles.btnPrimarySubtext}>Spare 58% · CHF 1.25 / Monat</Text>
-            </>
-          )}
-        </TouchableOpacity>
+        {loadingOffering ? (
+          <ActivityIndicator color={theme.primary} style={{ marginVertical: 24 }} />
+        ) : noProducts ? (
+          <Text style={styles.noProducts}>
+            Abos derzeit nicht verfügbar. Bitte später erneut versuchen.
+          </Text>
+        ) : (
+          <>
+            {annual && (
+              <TouchableOpacity
+                style={styles.btnPrimary}
+                onPress={() => purchase(annual)}
+                disabled={purchasing}
+              >
+                {purchasing ? <ActivityIndicator color="#fff" /> : (
+                  <>
+                    <Text style={styles.btnPrimaryText}>
+                      Jährlich — {annual.product.priceString}
+                    </Text>
+                    {(savingPct || perMonthFromAnnual) && (
+                      <Text style={styles.btnPrimarySubtext}>
+                        {savingPct ? `Spare ${savingPct}% · ` : ''}
+                        {perMonthFromAnnual ? `${perMonthFromAnnual} / Monat` : ''}
+                      </Text>
+                    )}
+                  </>
+                )}
+              </TouchableOpacity>
+            )}
 
-        <TouchableOpacity
-          style={styles.btnSecondary}
-          onPress={() => handlePurchase('splitivo_pro_monthly')}
-          disabled={loading}
-        >
-          <Text style={styles.btnSecondaryText}>Monatlich — CHF 2.99</Text>
-        </TouchableOpacity>
+            {monthly && (
+              <TouchableOpacity
+                style={styles.btnSecondary}
+                onPress={() => purchase(monthly)}
+                disabled={purchasing}
+              >
+                <Text style={styles.btnSecondaryText}>
+                  Monatlich — {monthly.product.priceString}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </>
+        )}
 
-        <TouchableOpacity onPress={handleRestore} disabled={loading}>
+        <TouchableOpacity onPress={handleRestore} disabled={purchasing}>
           <Text style={styles.restore}>Käufe wiederherstellen</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity onPress={() => navigation.goBack()} disabled={loading}>
+        <TouchableOpacity onPress={() => navigation.goBack()} disabled={purchasing}>
           <Text style={styles.skip}>Vielleicht später</Text>
         </TouchableOpacity>
 
@@ -128,6 +182,10 @@ function getStyles(theme: Theme) {
     featureIcon: { fontSize: 22, width: 36 },
     featureText: { flex: 1, fontSize: 15, color: theme.text },
     check: { fontSize: 16, color: theme.primary, fontWeight: '700' },
+    noProducts: {
+      fontSize: 14, color: theme.textSecondary, textAlign: 'center',
+      marginVertical: 24, paddingHorizontal: 12,
+    },
     btnPrimary: {
       width: '100%', backgroundColor: theme.primary, borderRadius: 14,
       paddingVertical: 16, alignItems: 'center', marginBottom: 12,

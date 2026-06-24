@@ -4,6 +4,13 @@ import { supabase } from '../lib/supabase'
 
 const RC_API_KEY = process.env.EXPO_PUBLIC_REVENUECAT_IOS_KEY!
 
+// Splitivo hat genau EIN Entitlement (Pro). Statt eines fixen Keys
+// (case-sensitive: 'pro' vs 'Pro') gilt: irgendein aktives Entitlement
+// => Pro. Falls später weitere Entitlements dazukommen, hier auf eine
+// konkrete ID umstellen.
+const hasProEntitlement = (info: CustomerInfo): boolean =>
+  Object.keys(info.entitlements.active).length > 0
+
 export interface ProStatus {
   isPro: boolean
   isLoading: boolean
@@ -29,8 +36,7 @@ export function usePro(): ProStatus {
 
         const info = await Purchases.getCustomerInfo()
         setCustomerInfo(info)
-        const active = info.entitlements.active['pro']
-        setIsPro(!!active)
+        setIsPro(hasProEntitlement(info))
       } catch (err) {
         console.error('RevenueCat check failed:', err)
       } finally {
@@ -42,7 +48,7 @@ export function usePro(): ProStatus {
 
     const listener = (info: CustomerInfo) => {
       setCustomerInfo(info)
-      setIsPro(!!info.entitlements.active['pro'])
+      setIsPro(hasProEntitlement(info))
     }
     Purchases.addCustomerInfoUpdateListener(listener)
 
