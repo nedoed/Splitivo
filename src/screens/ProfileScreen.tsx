@@ -104,25 +104,37 @@ export default function ProfileScreen({ navigation }: any) {
     }
   };
 
+  // Schulden-Erinnerungen sind ein Pro-Feature
+  const requirePro = () => {
+    if (isPro) return true;
+    haptics.warning();
+    navigation.navigate('Paywall');
+    return false;
+  };
+
   const toggleReminderEnabled = (value: boolean) => {
+    if (!requirePro()) return;
     haptics.selection();
     setReminderEnabled(value);
     saveReminderField({ reminder_enabled: value });
   };
 
   const toggleDailySummary = (value: boolean) => {
+    if (!requirePro()) return;
     haptics.selection();
     setReminderDailySummary(value);
     saveReminderField({ reminder_daily_summary: value });
   };
 
   const selectReminderDays = (days: number) => {
+    if (!requirePro()) return;
     haptics.light();
     setReminderDays(days);
     saveReminderField({ reminder_days: days });
   };
 
   const openTimePicker = () => {
+    if (!requirePro()) return;
     const [h, m] = reminderTime.split(':').map(Number);
     setPickerHour(h);
     setPickerMinute(m);
@@ -522,15 +534,18 @@ export default function ProfileScreen({ navigation }: any) {
         </TouchableOpacity>
       </View>
 
-      {/* Erinnerungen-Sektion */}
+      {/* Erinnerungen-Sektion (Pro) */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Erinnerungen</Text>
+        <View style={styles.sectionTitleRow}>
+          <Text style={styles.sectionTitle}>Erinnerungen</Text>
+          {!isPro && <Text style={styles.proTag}>PRO</Text>}
+        </View>
 
         <View style={styles.menuItem}>
           <Text style={styles.menuIcon}>🔔</Text>
           <Text style={styles.menuLabel}>Erinnerungen aktiv</Text>
           <Switch
-            value={reminderEnabled}
+            value={isPro && reminderEnabled}
             onValueChange={toggleReminderEnabled}
             trackColor={{ false: theme.border, true: theme.primary }}
             thumbColor="#FFFFFF"
@@ -812,6 +827,12 @@ function getStyles(theme: Theme) {
 
     section: { marginBottom: 20 },
     sectionTitle: { fontSize: 13, fontWeight: '600', color: theme.textSecondary, marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.5 },
+    sectionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    proTag: {
+      backgroundColor: theme.primary, color: '#fff', fontSize: 10, fontWeight: '700',
+      paddingHorizontal: 8, paddingVertical: 2, borderRadius: 99, overflow: 'hidden',
+      marginBottom: 12,
+    },
     menuItem: {
       flexDirection: 'row', alignItems: 'center', backgroundColor: theme.card,
       borderRadius: 12, padding: 16, marginBottom: 8,

@@ -11,6 +11,7 @@ import EmptyState from '../components/EmptyState';
 import { CATEGORIES } from '../types';
 import { useTheme } from '../lib/ThemeContext';
 import { Theme } from '../lib/theme';
+import { usePro } from '../hooks/usePro';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -94,7 +95,7 @@ interface GroupStat {
   byCurrency: Record<string, number>;
 }
 
-export default function StatsScreen() {
+export default function StatsScreen({ navigation }: any) {
   const [period, setPeriod] = useState<Period>('thisMonth');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -121,6 +122,7 @@ export default function StatsScreen() {
   const [memberDebts, setMemberDebts] = useState<MemberDebt[]>([]);
 
   const { theme } = useTheme();
+  const { isPro } = usePro();
   const styles = getStyles(theme);
 
   const loadStats = useCallback(async (p: Period) => {
@@ -685,8 +687,23 @@ export default function StatsScreen() {
             );
           })}
 
-          {/* ── 6-Monats-Liniendiagramme pro Währung ─────────────────────────── */}
-          {chartCurrencies.map((cur) => {
+          {/* ── 6-Monats-Liniendiagramme pro Währung (Pro) ───────────────────── */}
+          {!isPro ? (
+            <TouchableOpacity
+              style={styles.chartLockCard}
+              activeOpacity={0.85}
+              onPress={() => navigation.navigate('Profil', { screen: 'Paywall' })}
+            >
+              <Text style={styles.chartLockBadge}>PRO</Text>
+              <Text style={styles.chartLockTitle}>📈 Ausgaben-Trends</Text>
+              <Text style={styles.chartLockText}>
+                Erweiterte Charts mit 6-Monats-Verlauf sind Teil von Splitivo Pro.
+              </Text>
+              <View style={styles.chartLockBtn}>
+                <Text style={styles.chartLockBtnText}>Jetzt upgraden</Text>
+              </View>
+            </TouchableOpacity>
+          ) : chartCurrencies.map((cur) => {
             const md = monthlyDataByCurrency[cur];
             if (!md) return null;
             const chartData = {
@@ -866,6 +883,20 @@ function getStyles(theme: Theme) {
       shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 1,
     },
     cardTitle: { fontSize: 15, fontWeight: '700', color: theme.text, marginBottom: 14 },
+
+    chartLockCard: {
+      backgroundColor: theme.card, borderRadius: 16, padding: 22, marginBottom: 12,
+      alignItems: 'center', borderWidth: 1.5, borderColor: theme.primaryLight,
+      shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 1,
+    },
+    chartLockBadge: {
+      backgroundColor: theme.primary, color: '#fff', fontSize: 11, fontWeight: '700',
+      paddingHorizontal: 12, paddingVertical: 4, borderRadius: 99, overflow: 'hidden', marginBottom: 10,
+    },
+    chartLockTitle: { fontSize: 16, fontWeight: '700', color: theme.text, marginBottom: 6 },
+    chartLockText: { fontSize: 13, color: theme.textSecondary, textAlign: 'center', marginBottom: 16 },
+    chartLockBtn: { backgroundColor: theme.primary, borderRadius: 12, paddingHorizontal: 24, paddingVertical: 12 },
+    chartLockBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
 
     currencySectionHeader: {
       flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
