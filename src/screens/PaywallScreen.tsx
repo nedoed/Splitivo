@@ -1,12 +1,18 @@
 import React, { useEffect, useState } from 'react'
 import {
   View, Text, TouchableOpacity, StyleSheet,
-  ActivityIndicator, Alert, ScrollView
+  ActivityIndicator, Alert, ScrollView, Linking
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import Purchases, { PurchasesOffering, PurchasesPackage } from 'react-native-purchases'
 import { useTheme } from '../lib/ThemeContext'
 import { Theme } from '../lib/theme'
+
+// Apple verlangt auf Auto-Renew-Paywalls Links zu Nutzungsbedingungen
+// (EULA) und Datenschutz. Apple-Standard-EULA ist als Terms zulässig.
+const TERMS_URL = 'https://www.apple.com/legal/internet-services/itunes/dev/stdeula/'
+// TODO: echte gehostete Datenschutz-URL eintragen (gleiche wie in App Store Connect).
+const PRIVACY_URL = 'https://splitivo.app/datenschutz'
 
 export default function PaywallScreen({ navigation }: any) {
   const { theme } = useTheme()
@@ -150,6 +156,26 @@ export default function PaywallScreen({ navigation }: any) {
           <Text style={styles.skip}>Vielleicht später</Text>
         </TouchableOpacity>
 
+        {/* Apple-Pflichtangaben für Auto-Renew-Abos */}
+        <Text style={styles.legalText}>
+          Die Zahlung wird bei Kaufbestätigung deinem Apple-ID-Konto belastet.
+          Das Abo verlängert sich automatisch um denselben Zeitraum, sofern es
+          nicht mindestens 24 Stunden vor Ablauf der laufenden Periode gekündigt
+          wird. Die Belastung für die Verlängerung erfolgt innerhalb von 24 Stunden
+          vor Periodenende. Abos lassen sich nach dem Kauf in den App-Store-Einstellungen
+          verwalten und kündigen.
+        </Text>
+
+        <View style={styles.legalLinks}>
+          <TouchableOpacity onPress={() => Linking.openURL(TERMS_URL)}>
+            <Text style={styles.legalLink}>Nutzungsbedingungen</Text>
+          </TouchableOpacity>
+          <Text style={styles.legalSep}>·</Text>
+          <TouchableOpacity onPress={() => Linking.openURL(PRIVACY_URL)}>
+            <Text style={styles.legalLink}>Datenschutz</Text>
+          </TouchableOpacity>
+        </View>
+
       </ScrollView>
     </SafeAreaView>
   )
@@ -191,5 +217,15 @@ function getStyles(theme: Theme) {
     btnSecondaryText: { color: theme.primary, fontSize: 16, fontWeight: '600' },
     restore: { color: theme.textSecondary, fontSize: 13, marginBottom: 12 },
     skip: { color: theme.textTertiary, fontSize: 13 },
+    legalText: {
+      color: theme.textTertiary, fontSize: 11, lineHeight: 16,
+      textAlign: 'center', marginTop: 20,
+    },
+    legalLinks: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+      gap: 8, marginTop: 10, marginBottom: 8,
+    },
+    legalLink: { color: theme.textSecondary, fontSize: 12, textDecorationLine: 'underline' },
+    legalSep: { color: theme.textTertiary, fontSize: 12 },
   })
 }
