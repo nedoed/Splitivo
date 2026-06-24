@@ -2,7 +2,7 @@
   "expo": {
     "name": "Splitivo",
     "slug": "splitivo",
-    "version": "1.0.1",
+    "version": "1.1.0",
     "scheme": "splitivo",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
