@@ -1,3 +1,26 @@
+export interface CurrencyOption {
+  code: string;
+  flag: string;
+  name: string;
+  pro: boolean; // true = nur mit Splitivo Pro wählbar
+}
+
+// Free: CHF/EUR/USD. Pro schaltet die übrigen frei ("Alle Währungen").
+export const CURRENCIES: CurrencyOption[] = [
+  { code: 'CHF', flag: '🇨🇭', name: 'Schweizer Franken', pro: false },
+  { code: 'EUR', flag: '🇪🇺', name: 'Euro', pro: false },
+  { code: 'USD', flag: '🇺🇸', name: 'US-Dollar', pro: false },
+  { code: 'GBP', flag: '🇬🇧', name: 'Britisches Pfund', pro: true },
+  { code: 'JPY', flag: '🇯🇵', name: 'Japanischer Yen', pro: true },
+  { code: 'AUD', flag: '🇦🇺', name: 'Australischer Dollar', pro: true },
+  { code: 'CAD', flag: '🇨🇦', name: 'Kanadischer Dollar', pro: true },
+  { code: 'SEK', flag: '🇸🇪', name: 'Schwedische Krone', pro: true },
+  { code: 'NOK', flag: '🇳🇴', name: 'Norwegische Krone', pro: true },
+  { code: 'DKK', flag: '🇩🇰', name: 'Dänische Krone', pro: true },
+  { code: 'PLN', flag: '🇵🇱', name: 'Polnischer Złoty', pro: true },
+  { code: 'CZK', flag: '🇨🇿', name: 'Tschechische Krone', pro: true },
+];
+
 export interface Profile {
   id: string;
   username: string;

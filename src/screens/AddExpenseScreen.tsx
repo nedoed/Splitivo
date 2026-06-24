@@ -30,7 +30,7 @@ function decode(base64: string): Uint8Array {
 import { supabase } from '../lib/supabase';
 import { notifyGroupMembers } from '../lib/notifications';
 import { haptics } from '../lib/haptics';
-import { CATEGORIES, CATEGORY_SCAN_MAP, GroupMember } from '../types';
+import { CATEGORIES, CATEGORY_SCAN_MAP, GroupMember, CURRENCIES } from '../types';
 import { useTheme } from '../lib/ThemeContext';
 import { Theme } from '../lib/theme';
 
@@ -46,7 +46,8 @@ export default function AddExpenseScreen({ route, navigation }: any) {
   const [selectedMembers, setSelectedMembers] = useState<string[]>(
     members.map((m) => m.user_id)
   );
-  const [currency, setCurrency] = useState<'CHF' | 'EUR' | 'USD'>('CHF');
+  const [currency, setCurrency] = useState<string>('CHF');
+  const [currencyPickerVisible, setCurrencyPickerVisible] = useState(false);
   const [loading, setLoading] = useState(false);
   const [scanLoading, setScanLoading] = useState(false);
   const [receiptImage, setReceiptImage] = useState<string | null>(null);
@@ -160,8 +161,10 @@ Erkenne alle einzelnen Positionen auf dem Kassenbon.`,
         const mappedCategory = parsed.category
           ? (CATEGORY_SCAN_MAP[parsed.category.toLowerCase()] ?? parsed.category)
           : category;
-        const detectedCurrency = parsed.currency && ['CHF', 'EUR', 'USD'].includes(parsed.currency)
-          ? parsed.currency as 'CHF' | 'EUR' | 'USD'
+        // Erkannte Währung übernehmen, aber Pro-Währungen nur für Pro-User
+        const detected = CURRENCIES.find((c) => c.code === parsed.currency);
+        const detectedCurrency = detected && (!detected.pro || isPro)
+          ? detected.code
           : currency;
 
         if (Array.isArray(parsed.items) && parsed.items.length > 0) {
@@ -343,20 +346,15 @@ Erkenne alle einzelnen Positionen auf dem Kassenbon.`,
             onSubmitEditing={() => descriptionRef.current?.focus()}
             blurOnSubmit={false}
           />
-          <View style={styles.currencyPicker}>
-            {(['CHF', 'EUR', 'USD'] as const).map((c) => (
-              <TouchableOpacity
-                key={c}
-                style={[styles.currencyBtn, currency === c && styles.currencyBtnActive]}
-                onPress={() => { haptics.selection(); setCurrency(c); }}
-              >
-                <Text style={[styles.currencyBtnText, currency === c && styles.currencyBtnTextActive]}>
-                  {c === 'CHF' ? '🇨🇭' : c === 'EUR' ? '🇪🇺' : '🇺🇸'}
-                </Text>
-                <Text style={[styles.currencyCode, currency === c && styles.currencyCodeActive]}>{c}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+          <TouchableOpacity
+            style={styles.currencyBtn}
+            onPress={() => { haptics.selection(); setCurrencyPickerVisible(true); }}
+          >
+            <Text style={styles.currencyBtnText}>
+              {CURRENCIES.find((c) => c.code === currency)?.flag ?? '💱'}
+            </Text>
+            <Text style={styles.currencyCode}>{currency}</Text>
+          </TouchableOpacity>
         </View>
 
         <Text style={styles.label}>Beschreibung</Text>
@@ -500,6 +498,54 @@ Erkenne alle einzelnen Positionen auf dem Kassenbon.`,
           </View>
         </View>
       </Modal>
+
+      {/* Währungs-Picker */}
+      <Modal visible={currencyPickerVisible} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Währung wählen</Text>
+            <ScrollView style={{ maxHeight: 380 }}>
+              {CURRENCIES.map((c) => {
+                const isSelected = currency === c.code;
+                const locked = c.pro && !isPro;
+                return (
+                  <TouchableOpacity
+                    key={c.code}
+                    style={[styles.modalItem, isSelected && styles.modalItemActive]}
+                    onPress={() => {
+                      if (locked) {
+                        setCurrencyPickerVisible(false);
+                        haptics.warning();
+                        navigation.navigate('Paywall');
+                        return;
+                      }
+                      haptics.selection();
+                      setCurrency(c.code);
+                      setCurrencyPickerVisible(false);
+                    }}
+                  >
+                    <Text style={styles.currencyModalFlag}>{c.flag}</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.modalItemText, isSelected && styles.modalItemTextActive]}>
+                        {c.code} · {c.name}
+                      </Text>
+                    </View>
+                    {locked
+                      ? <Text style={styles.currencyProTag}>PRO</Text>
+                      : isSelected && <Text style={styles.modalCheck}>✓</Text>}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+            <TouchableOpacity
+              style={styles.modalCancel}
+              onPress={() => setCurrencyPickerVisible(false)}
+            >
+              <Text style={styles.modalCancelText}>Abbrechen</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -543,6 +589,11 @@ function getStyles(theme: Theme) {
     currencyBtnTextActive: {},
     currencyCode: { fontSize: 9, fontWeight: '600', color: theme.textSecondary, marginTop: 1 },
     currencyCodeActive: { color: theme.primary },
+    currencyModalFlag: { fontSize: 22, marginRight: 12 },
+    currencyProTag: {
+      backgroundColor: theme.primary, color: '#fff', fontSize: 10, fontWeight: '700',
+      paddingHorizontal: 8, paddingVertical: 2, borderRadius: 99, overflow: 'hidden',
+    },
 
     pickerBtn: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
