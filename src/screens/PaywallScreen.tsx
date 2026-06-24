@@ -39,17 +39,23 @@ export default function PaywallScreen({ navigation }: any) {
     offering?.availablePackages.find(p => p.packageType === 'MONTHLY') ??
     null
 
-  // Ersparnis Jahr vs. 12× Monat, falls beide vorhanden.
-  let savingPct: number | null = null
-  let perMonthFromAnnual: string | null = null
+  // Anzeige-Preise: live aus dem Package, sonst Fallback (= ASC-Preise).
+  // So sieht die Paywall (und der App-Store-Review-Screenshot) auch vor
+  // der Store-Freigabe korrekt aus. Sobald das Offering live ist, gelten
+  // automatisch die echten StoreKit-Preise.
+  const annualPriceLabel = annual?.product.priceString ?? 'CHF 15.00'
+  const monthlyPriceLabel = monthly?.product.priceString ?? 'CHF 2.00'
+
+  let savingPct = 38
+  let perMonthLabel = 'CHF 1.25'
   if (annual && monthly && monthly.product.price > 0) {
     const yearlyAtMonthly = monthly.product.price * 12
-    if (yearlyAtMonthly > 0) {
-      savingPct = Math.round((1 - annual.product.price / yearlyAtMonthly) * 100)
-    }
-    const perMonth = annual.product.price / 12
-    perMonthFromAnnual = `${annual.product.currencyCode} ${perMonth.toFixed(2)}`
+    savingPct = Math.round((1 - annual.product.price / yearlyAtMonthly) * 100)
+    perMonthLabel = `${annual.product.currencyCode} ${(annual.product.price / 12).toFixed(2)}`
   }
+
+  const notReady = () =>
+    Alert.alert('Bald verfügbar', 'Die Abos werden gerade freigeschaltet. Bitte versuche es in Kürze erneut.')
 
   const purchase = async (pkg: PurchasesPackage) => {
     setPurchasing(true)
@@ -79,8 +85,6 @@ export default function PaywallScreen({ navigation }: any) {
     }
   }
 
-  const noProducts = !loadingOffering && !annual && !monthly
-
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
@@ -108,45 +112,34 @@ export default function PaywallScreen({ navigation }: any) {
 
         {loadingOffering ? (
           <ActivityIndicator color={theme.primary} style={{ marginVertical: 24 }} />
-        ) : noProducts ? (
-          <Text style={styles.noProducts}>
-            Abos derzeit nicht verfügbar. Bitte später erneut versuchen.
-          </Text>
         ) : (
           <>
-            {annual && (
-              <TouchableOpacity
-                style={styles.btnPrimary}
-                onPress={() => purchase(annual)}
-                disabled={purchasing}
-              >
-                {purchasing ? <ActivityIndicator color="#fff" /> : (
-                  <>
-                    <Text style={styles.btnPrimaryText}>
-                      Jährlich — {annual.product.priceString}
-                    </Text>
-                    {(savingPct || perMonthFromAnnual) && (
-                      <Text style={styles.btnPrimarySubtext}>
-                        {savingPct ? `Spare ${savingPct}% · ` : ''}
-                        {perMonthFromAnnual ? `${perMonthFromAnnual} / Monat` : ''}
-                      </Text>
-                    )}
-                  </>
-                )}
-              </TouchableOpacity>
-            )}
+            <TouchableOpacity
+              style={styles.btnPrimary}
+              onPress={() => (annual ? purchase(annual) : notReady())}
+              disabled={purchasing}
+            >
+              {purchasing ? <ActivityIndicator color="#fff" /> : (
+                <>
+                  <Text style={styles.btnPrimaryText}>
+                    Jährlich — {annualPriceLabel}
+                  </Text>
+                  <Text style={styles.btnPrimarySubtext}>
+                    Spare {savingPct}% · {perMonthLabel} / Monat
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
 
-            {monthly && (
-              <TouchableOpacity
-                style={styles.btnSecondary}
-                onPress={() => purchase(monthly)}
-                disabled={purchasing}
-              >
-                <Text style={styles.btnSecondaryText}>
-                  Monatlich — {monthly.product.priceString}
-                </Text>
-              </TouchableOpacity>
-            )}
+            <TouchableOpacity
+              style={styles.btnSecondary}
+              onPress={() => (monthly ? purchase(monthly) : notReady())}
+              disabled={purchasing}
+            >
+              <Text style={styles.btnSecondaryText}>
+                Monatlich — {monthlyPriceLabel}
+              </Text>
+            </TouchableOpacity>
           </>
         )}
 
