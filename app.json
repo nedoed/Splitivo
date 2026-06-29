@@ -14,7 +14,7 @@
       "backgroundColor": "#6C63FF"
     },
     "ios": {
-  "supportsTablet": true,
+  "supportsTablet": false,
   "bundleIdentifier": "com.nedoed.splitivo",
   "buildNumber": "1",
   "infoPlist": {
