@@ -52,8 +52,20 @@
       }
     },
     "plugins": [
-      "expo-camera",
-      "expo-image-picker",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Splitivo verwendet die Kamera, um Kassenbons zu fotografieren und ihre Beträge automatisch als Ausgaben zu erfassen, sowie um ein Profilbild aufzunehmen.",
+          "recordAudioAndroid": false
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Splitivo greift auf deine Fotos zu, damit du ein gespeichertes Foto eines Kassenbons zur Ausgabenerfassung oder ein Bild als Profilbild auswählen kannst.",
+          "cameraPermission": "Splitivo verwendet die Kamera, um einen Kassenbon zu fotografieren oder ein Profilbild aufzunehmen."
+        }
+      ],
       "expo-file-system",
       [
         "expo-notifications",
